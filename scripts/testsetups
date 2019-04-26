@@ -1,0 +1,544 @@
+#!/bin/bash
+
+# TEST SETUP FUNCTIONS
+# These functions prepare data to feed the go tests and handle the results, or
+# any other housekeeping.
+#
+# Their names must begin with $setup_prefix, followed by the name of an action
+# defined in the testActions map in the Go code. The variable $setup_prefix is
+# defined in the CONFIGURATION section above
+
+testsetup_default() {
+    return
+}
+
+testsetup_simple() {
+    echo "Running the test action"
+    "$test_binary" $test_default_flags $@
+}
+
+testsetup_client_getnodelist() {
+    local target=${FUNCNAME##*${setup_prefix}}
+
+    echo 'Running the test action and capturing output'
+
+    local -a output
+    readarray -t output< <("$test_binary" $test_default_flags $target 2>&1)
+
+    # print the output and save the node names in a global array
+    local line node
+    nodes=()
+    for line in "${output[@]}"; do
+        echo "$line"
+        node=$(sed -rn 's/\"node\": \"(.*)\",/\1/p' <<< "$line")
+        [[ -n $node ]] && nodes+=($node)
+    done
+
+    # sort the node list
+    local oldifs=$IFS
+    IFS=$'\n' nodes=($(sort <<< "${nodes[*]}")) IFS=$oldifs
+}
+
+testsetup_client_checkvmref() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+
+    echo 'Running the test action and capturing output'
+
+    local -a output
+    readarray -t output< <("$test_binary" $test_default_flags $target $arguments 2>&1)
+
+    local line
+    for line in "${!output[@]}"; do
+        echo "${output[$line]}"
+    done
+
+    local status="${output[$((line))]}"
+
+    if (( runcount == 1 )); then
+        [[ "${status##*: }" != "true" ]] && {
+            echo 'Checking for a non-existant VM ID failed. This is good.'
+        }
+    else
+        [[ "${status##*: }" == "true" ]] && {
+            echo 'Checking for an existant VM ID succeeded.'
+        }
+    fi
+}
+
+testsetup_client_getvminfo() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_getvmrefbyname() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmnames[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_getvmstate() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_getvmconfig() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_getvmspiceproxy() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_monitorcmd() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+
+    cat<<EOF
+For this test please enter lines with Qemu monitor commands to send to a VM
+Watch the VM ${vmids[$((runcount-1))]} (${vmnames[$((runcount-1))]}) and verify that the commands are affecting it
+An empty line ends the test
+EOF
+
+    local command
+    while read -p 'Enter monitor command (empty line to end the test): ' command; do
+      [[ -z "$command" ]] && break
+      testsetup_simple $flags $target "$command"
+    done
+
+}
+
+testsetup_client_gettaskexitstatus() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    testsetup_simple $target "$UPID"
+}
+
+testsetup_client_statuschangevm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+
+    # omit a second shutdown because it fails anyway and takes ages
+
+    local status
+    for status in start reset suspend resume stop; do
+      testsetup_simple $flags $target $status
+    done
+}
+
+testsetup_client_startvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_stopvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_shutdownvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_resetvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_suspendvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_resumevm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_client_deletevm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+
+    echo 'Running the test action and capturing output'
+
+    local -a output
+    readarray -t output< <("$test_binary" $test_default_flags $target $arguments 2>&1)
+
+    local line
+    for line in "${!output[@]}"; do
+      echo "${output[$line]}"
+    done
+
+    # set UPID for gettaskexitstatus
+    local status="${output[$((line))]}"
+    [[ "${status##*: }" == "true" ]] && {
+      UPID="$(sed -r 's/^.*\"(UPID[^"]+)".*$/\1/' <<< ${output[$((line-2))]})"
+    }
+}
+
+testsetup_client_rollbackqemuvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+
+    cat<<EOF
+For this test please take a snapshot of the VM ${vmids[$((runcount-1))]} (${vmnames[$((runcount-1))]})
+Once the snapshot is made, enter its name to attempt to rollback the VM
+EOF
+
+    local snapshot
+    read -p 'Enter the name of the snapshot: ' snapshot
+    testsetup_simple $flags $target "$snapshot"
+}
+
+testsetup_client_getnextid() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+
+    echo 'Running the test action and capturing output'
+
+    local -a output
+    readarray -t output< <("$test_binary" $test_default_flags $target 2>&1)
+
+    local line
+    for line in "${!output[@]}"; do
+        echo "${output[$line]}"
+    done
+
+    local response status="${output[$((line))]}"
+    [[ "${status##*: }" == "true" ]] && {
+        echo 'Getting the new VM ID to use'
+        response="${output[$((line-1))]}"
+        vmids+=(${response##*response is })
+        echo "The new VMID from getnextid is: ${vmids[$((${#vmids[@]}-1))]}"
+    }
+}
+
+testsetup_client_resizeqemudisk() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+
+    local size="$(( RANDOM % 5 + 1))"
+
+    local arguments="$selectednode virtio0 $size"
+
+    echo "Attempting to resize disk 'virtio0' by $size GB"
+    testsetup_simple $flags $target $arguments
+}
+
+testsetup_client_createvmdisk() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+    local arguments="$selectednode"
+
+    testsetup_simple $flags $target $arguments <<< $(diskjson test-createvmdisk 2)
+}
+
+# this test will always fail, the target code uses an incorrect verb (POST)
+# while it should use DELETE
+testsetupclient_deletevmdisks() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local vmid="${vmids[$((runcount-1))]}"
+    local flags="-vmid $vmid"
+    local arguments="$selectednode local-lvm:vm-$vmid-disk-1,local-lvm:vm-$vmid-test-createvmdisk"
+
+    testsetup_simple $flags $target $arguments
+}
+
+testsetup_configqemu_createvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+
+    echo "These are the nodes I got from the previous client_getnodelist test: ${nodes[@]}"
+    while read -p "At which node should I attempt to create the VMs? (${nodes[0]}) " selectednode; do
+      case "${selectednode}" in
+        @($(sed 's/ /|/g' <<< ${nodes[@]}))) break ;;
+        '') selectednode=${nodes[0]} && break;;
+        *) echo "\"$selectednode\" is not a valid option, please enter one of the following: ${nodes[@]}" ;;
+      esac
+    done
+
+    local arguments="$selectednode"
+    
+    vmnames[$((runcount-1))]="test-createvm${runcount}"
+
+    echo 'Running the test action and capturing output'
+
+    local -a output
+    readarray -t output< <("$test_binary" $flags $test_default_flags $target $arguments< <(vmjson ${vmnames[$((runcount-1))]}) 2>&1)
+
+    local line
+    for line in "${!output[@]}"; do
+        echo "${output[$line]}"
+    done
+}
+
+testsetup_configqemu_clonevm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount))]}"
+    local arguments="${vmnames[$((runcount-1))]} $selectednode"
+
+    vmnames[$runcount]="test-clonevm${runcount}"
+
+    testsetup_simple $flags $target $arguments< <(vmjson ${vmnames[$runcount]})
+}
+
+testsetup_configqemu_updateconfig() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local vmid="vmid${runcount}" vmname="vmname${runcount}"
+    local arguments="${!vmid}" 
+    testsetup_simple $target $arguments< <(vmjson ${!vmname}-updateconfig)
+}
+
+testsetup_configqemu_newconfigqemufromjson() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    testsetup_simple $target< <(vmjson test-newconfigqemufromjson)
+}
+
+testsetup_configqemu_newconfigqemufromapi() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_configqemu_sshforwardusernet() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_configqemu_removesshforwardusernet() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="${vmids[$((runcount-1))]}"
+    testsetup_simple $target $arguments
+}
+
+testsetup_configqemu_sendkeysstring() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+
+    cat<<EOF
+For this test please enter lines with strings to be sent to a Qemu VM
+Open the console for the VM ${vmids[$((runcount-1))]} (${vmnames[$((runcount-1))]}) and verify that the strings are appearing on the console
+An empty line ends the test
+EOF
+
+    local line
+    while read -p 'Enter string (empty line to end the test): ' line; do
+      [[ -z "$line" ]] && break
+      testsetup_simple $flags $target "$line"
+    done
+}
+
+testsetup_configqemu_createqemunetworksparams() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    local netjson=<<EOF
+{
+  "model": "virtio",
+  "bridge": "vmbr0",
+  "macaddr": "$(newmac)" 
+}
+EOF
+
+    testsetup_simple $target <<< $netjson
+}
+
+testsetup_configqemu_createqemudisksparams() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    testsetup_simple $target < <(diskjson test-createqemudisksparams 2)
+}
+
+testsetup_session_paramstobody() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    testsetup_simple $target< <(vmjson test-paramstobody)
+}
+
+testsetup_session_request() {
+    local target=${FUNCNAME##*${setup_prefix}}
+
+    local line endpoint='/storage' params='type=lvmthin'
+
+    cat<<EOF
+For this test you can supply a REST endpoint and parameters to issue a GET request
+if you press enter here I will use these defaults:
+
+endpoint: $endpoint
+parameters: $params
+
+The parameter list should be a comma delimited list of key=value pairs, with no spaces
+
+I will use the defaults if nothing is entered after 20 seconds
+EOF
+
+    read -t 20 -p "What endpoint should I query? ($endpoint) " line
+    [[ -n "$line" ]] && {
+      endpoint="$line"
+      read -t 20 -p "What parameter should I send in the query? ($params) " line
+      [[ -n "$line" ]] && params="$line"
+    }
+
+    local arguments="$endpoint $params"
+    testsetup_simple $target $arguments
+}
+
+testsetup_session_requestjson() {
+    local target=${FUNCNAME##*${setup_prefix}}
+
+    cat<<EOF
+This test works the same as the previous one, and has the same defaults
+
+I will use the defaults if nothing is entered after 20 seconds.
+EOF
+
+    local line endpoint='/storage' params='type=lvmthin'
+    read -t 20 -p "What endpoint should I query? ($endpoint) " line
+    [[ -n "$line" ]] && {
+      endpoint="$line"
+      read -t 20 -p "What parameter should I send in the query? ($params) " line
+      [[ -n "$line" ]] && params="$line"
+    }
+
+    local arguments="$endpoint $params"
+    testsetup_simple $target $arguments
+}
+
+testsetup_session_get() {
+    local target=${FUNCNAME##*${setup_prefix}}
+
+    cat<<EOF
+This test works the same as the previous one, and has the same defaults
+
+I will use the defaults if nothing is entered after 20 seconds.
+EOF
+
+    local line endpoint='/storage' params='type=lvmthin'
+    read -t 20 -p "What endpoint should I query? ($endpoint) " line
+    [[ -n "$line" ]] && {
+      endpoint="$line"
+      read -t 20 -p "What parameter should I send in the query? ($params) " line
+      [[ -n "$line" ]] && params="$line"
+    }
+
+    local arguments="$endpoint $params"
+    testsetup_simple $target $arguments
+}
+
+testsetup_session_getjson() {
+    local target=${FUNCNAME##*${setup_prefix}}
+
+    cat<<EOF
+This test works the same as the previous one, and has the same defaults
+
+I will use the defaults if nothing is entered after 20 seconds.
+EOF
+
+    local line endpoint='/storage' params='type=lvmthin'
+    read -t 20 -p "What endpoint should I query? ($endpoint) " line
+    [[ -n "$line" ]] && {
+      endpoint="$line"
+      read -t 20 -p "What parameter should I send in the query? ($params) " line
+      [[ -n "$line" ]] && params="$line"
+    }
+
+    local arguments="$endpoint $params"
+    testsetup_simple $target $arguments
+}
+
+testsetup_session_post() {
+    local target=${FUNCNAME##*${setup_prefix}}
+
+    cat<<EOF
+For this and the following tests I will create a test pool using POST requests,
+then add and remove VMs to/from the pool using PUT, and finally DELETE the pool.
+
+You can enter a name for this pool or use the default name.
+EOF
+
+    local line
+    read -t 20 -p "Enter a name for the test pool ($testpoolname) " line
+      [[ -n "$line" ]] && testpoolname="$line"
+
+    local arguments="$testpoolname"
+    testsetup_simple $target $arguments
+}
+
+testsetup_session_put() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    local flags="-vmid ${vmids[$((runcount-1))]}"
+    local arguments="$testpoolname"
+    testsetup_simple $flags $target $arguments
+}
+
+testsetup_session_delete() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments="$testpoolname"
+    testsetup_simple $target $arguments
+}
+
+testsetup_util_parsesubconf() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments kv delimiter
+    local delimiters='=:-|>#'
+    for ((i=1; i<=20; i++)); do
+      delimiter=${delimiters:$(( $RANDOM % ${#delimiters} )):1}
+      kv="key${i}${delimiter}randomvalue$((RANDOM % 99 + 1))"
+      arguments="$kv $delimiter"
+      testsetup_simple $target $arguments
+    done
+}
+
+testsetup_util_parseconf() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments kvs pairdelims kvdelim nosamedelim
+    local pairdelims=",;:|" kvdelims="=:-|>#"
+    for ((i=0; i<${#kvdelims}; i++)); do
+      kvs=''
+      pairdelim=${pairdelims:$((i % ${#pairdelims})):1}
+      nosamedelim=${kvdelims/[${pairdelim},${kvdelim}]/}
+      kvdelim=${nosamedelim:$(( $RANDOM % ${#nosamedelim} )):1}
+      for ((j=1; j<=20; j++)); do
+        kvs="${kvs:+${kvs}${pairdelim}}key${j}${kvdelim}randomvalue$((RANDOM % 99 + 1))"
+      done
+      arguments="$kvs $pairdelim $kvdelim"
+      testsetup_simple $target $arguments
+    done
+}
+
+
