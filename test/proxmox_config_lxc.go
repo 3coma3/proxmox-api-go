@@ -2,7 +2,7 @@ package test
 
 import (
 	"../proxmox"
-	"encoding/json"
+	// "encoding/json"
 	"errors"
 	"os"
 )
@@ -11,7 +11,7 @@ func init() {
 	testActions["configlxc_createvm"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
 
-		config, err := proxmox.NewConfiglxcFromJson(os.Stdin)
+		config, err := proxmox.NewConfigLxcFromJson(os.Stdin)
 		failOnError(err)
 
 		vmr.SetNode(options.Args[1])
@@ -95,46 +95,46 @@ func init() {
 		return nil, proxmox.SendKeysString(vmr, client, options.Args[1])
 	}
 
-	testActions["configlxc_createlxcnetworksparams"] = func(options *TOptions) (response interface{}, err error) {
-		// only the json for the network is needed on stdin
-		inputparams := proxmox.LxcDevice{}
+	// testActions["configlxc_createlxcnetworksparams"] = func(options *TOptions) (response interface{}, err error) {
+	// 	// only the json for the network is needed on stdin
+	// 	inputparams := proxmox.LxcDevice{}
 
-		// put whatever json is on stdin into a map[string]interface{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
+	// 	// put whatever json is on stdin into a map[string]interface{}
+	// 	failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
 
-		// put the map as LxcNetworks[0] as if it were built by
-		// NewConfigLxcFromJson
-		config := &proxmox.ConfigLxc{
-			LxcNetworks: proxmox.LxcDevices{0: inputparams},
-		}
+	// 	// put the map as LxcNetworks[0] as if it were built by
+	// 	// NewConfigLxcFromJson
+	// 	config := &proxmox.ConfigLxc{
+	// 		LxcNetworks: proxmox.LxcDevices{0: inputparams},
+	// 	}
 
-		// so now this method can build the PVEAPI-compatible "premap"
-		// this is a map of keys to config items, each config item will have
-		// a device name and a configuration with two levels of subelements
-		// this method rewrites heavily the input parameters
-		premap := proxmox.LxcDevice{}
-		return premap, config.CreateLxcNetworksParams(options.VMid, premap)
-	}
+	// 	// so now this method can build the PVEAPI-compatible "premap"
+	// 	// this is a map of keys to config items, each config item will have
+	// 	// a device name and a configuration with two levels of subelements
+	// 	// this method rewrites heavily the input parameters
+	// 	premap := proxmox.LxcDevice{}
+	// 	return premap, config.CreateLxcNetworksParams(options.VMid, premap)
+	// }
 
-	testActions["configlxc_createlxcdisksparams"] = func(options *TOptions) (response interface{}, err error) {
-		// only the json for the network interfaces is needed on stdin
-		inputparams := proxmox.LxcDevice{}
+	// testActions["configlxc_createlxcdisksparams"] = func(options *TOptions) (response interface{}, err error) {
+	// 	// only the json for the network interfaces is needed on stdin
+	// 	inputparams := proxmox.LxcDevice{}
 
-		// put whatever json is on stdin into a map[string]interface{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
+	// 	// put whatever json is on stdin into a map[string]interface{}
+	// 	failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
 
-		// put the map as LxcDisks[0] as if it were built by
-		// NewConfigLxcFromJson
-		config := &proxmox.ConfigLxc{
-			LxcDisks: proxmox.LxcDevices{0: inputparams},
-		}
+	// 	// put the map as LxcDisks[0] as if it were built by
+	// 	// NewConfigLxcFromJson
+	// 	config := &proxmox.ConfigLxc{
+	// 		LxcDisks: proxmox.LxcDevices{0: inputparams},
+	// 	}
 
-		// so now this method can build the PVEAPI-compatible "premap"
-		// this is a map of keys to config items, each config item will have
-		// a device name and a configuration with two levels of subelements
-		// this method rewrites heavily the input parameters
-		premap := proxmox.LxcDevice{}
-		return premap, config.CreateLxcDisksParams(options.VMid, premap, false)
-	}
+	// 	// so now this method can build the PVEAPI-compatible "premap"
+	// 	// this is a map of keys to config items, each config item will have
+	// 	// a device name and a configuration with two levels of subelements
+	// 	// this method rewrites heavily the input parameters
+	// 	premap := proxmox.LxcDevice{}
+	// 	return premap, config.CreateLxcDisksParams(options.VMid, premap, false)
+	// }
 
 }

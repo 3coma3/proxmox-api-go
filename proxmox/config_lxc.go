@@ -158,7 +158,7 @@ func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 }
 
 func NewConfigLxcFromJson(io io.Reader) (config *ConfigLxc, err error) {
-	//config = &ConfigLxc{LxcVlanTag: -1}
+	config = &ConfigLxc{}
 	err = json.NewDecoder(io).Decode(config)
 	if err != nil {
 		log.Fatal(err)
