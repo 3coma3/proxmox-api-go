@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
-	"net"
+	// "math/rand"
+	// "net"
 	"net/url"
 	"regexp"
-	"strconv"
+	// "strconv"
 	"strings"
 	"time"
 )
@@ -23,86 +23,77 @@ type (
 
 // ConfigLxc - Proxmox API LXC options
 type ConfigLxc struct {
-	Name        string     `json:"name"`
-	Description string     `json:"desc"`
-	Onboot      bool       `json:"onboot"`
-	Agent       string     `json:"agent"`
-	Memory      int        `json:"memory"`
-	LxcOs       string     `json:"os"`
-	LxcCores    int        `json:"cores"`
-	LxcSockets  int        `json:"sockets"`
-	LxcIso      string     `json:"iso"`
-	FullClone   *int       `json:"fullclone"`
-	LxcDisks    LxcDevices `json:"disk"`
-	LxcNetworks LxcDevices `json:"network"`
-
-	// Deprecated single disk.
-	DiskSize    float64 `json:"diskGB"`
-	Storage     string  `json:"storage"`
-	StorageType string  `json:"storageType"` // virtio|scsi (cloud-init defaults to scsi)
-
-	// Deprecated single nic.
-	LxcNicModel string `json:"nic"`
-	LxcBrige    string `json:"bridge"`
-	LxcVlanTag  int    `json:"vlan"`
-	LxcMacAddr  string `json:"mac"`
-
-	// cloud-init options
-	CIuser     string `json:"ciuser"`
-	CIpassword string `json:"cipassword"`
-
-	Searchdomain string `json:"searchdomain"`
-	Nameserver   string `json:"nameserver"`
+	Arch        string `json:"arch"`
+	Cmode       int    `json:"cmode"`
+	Console     bool   `json:"console"`
+	Cores       int    `json:"cores"`
+	Cpulimit    int    `json:"cpulimit"`
+	Cpuunits    int    `json:"cpuunits"`
+	Description string `json:"description"`
+	Digest      string `json:"digest"`
+	Features    string `json:"features"`
+	Hookscript  string `json:"hookscript"`
+	Hostname    string `json:"name"`
+	// Lock		enum
+	Memory int `json:"memory"`
+	// Mp[n]	string `json:"volumes"`
+	Nameserver   string     `json:"nameserver"`
+	Net          LxcDevices `json:"net"`
+	Onboot       bool       `json:"onboot"`
+	Ostype       string     `json:"ostype"`
+	Protection   bool       `json:"protection"`
+	Rootfs       string     `json:"rootfs"`
+	Searchdomain string     `json:"searchdomain"`
+	// Startup  string `json:"startup"`
+	Swap         int    `json:"swap"`
+	Template     bool   `json:"template"`
+	Tty          int    `json:"tty"`
+	Unprivileged bool   `json:"unprivileged"`
 	Sshkeys      string `json:"sshkeys"`
-
-	// arrays are hard, support 2 interfaces for now
-	Ipconfig0 string `json:"ipconfig0"`
-	Ipconfig1 string `json:"ipconfig1"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
 func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
-	if config.HasCloudInit() {
-		return errors.New("Cloud-init parameters only supported on clones or updates")
-	}
 	vmr.SetVmType("lxc")
 
 	params := map[string]interface{}{
-		"vmid":        vmr.vmId,
-		"name":        config.Name,
-		"onboot":      config.Onboot,
-		"agent":       config.Agent,
-		"ide2":        config.LxcIso + ",media=cdrom",
-		"ostype":      config.LxcOs,
-		"sockets":     config.LxcSockets,
-		"cores":       config.LxcCores,
-		"cpu":         "host",
-		"memory":      config.Memory,
-		"description": config.Description,
+		"vmid":         vmr.vmId,
+		"arch":         config.Arch,
+		"cmode":        config.Cmode,
+		"console":      config.Console,
+		"cores":        config.Cores,
+		"cpulimit":     config.Cpulimit,
+		"cpuunits":     config.Cpuunits,
+		"description":  config.Description,
+		"digest":       config.Digest,
+		"features":     config.Features,
+		"hookscript":   config.Hookscript,
+		"hostname":     config.Hostname,
+		"memory":       config.Memory,
+		"nameserver":   config.Nameserver,
+		"onboot":       config.Onboot,
+		"ostype":       config.Ostype,
+		"protection":   config.Protection,
+		"rootfs":       config.Rootfs,
+		"Swap":         config.Searchdomain,
+		"searchdomain": config.Searchdomain,
+		"template":     config.Template,
+		"tty":          config.Tty,
+		"unprivileged": config.Unprivileged,
+		"sshkeys":      config.Sshkeys,
 	}
 
 	// Create disks config.
-	config.CreateLxcDisksParams(vmr.vmId, params, false)
+	// config.CreateLxcDisksParams(vmr.vmId, params, false)
 
 	// Create networks config.
-	config.CreateLxcNetworksParams(vmr.vmId, params)
+	// config.CreateLxcNetworksParams(vmr.vmId, params)
 
 	exitStatus, err := client.CreateLxcVm(vmr.node, params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
 	return
-}
-
-// HasCloudInit - are there cloud-init options?
-func (config ConfigLxc) HasCloudInit() bool {
-	return config.CIuser != "" ||
-		config.CIpassword != "" ||
-		config.Searchdomain != "" ||
-		config.Nameserver != "" ||
-		config.Sshkeys != "" ||
-		config.Ipconfig0 != "" ||
-		config.Ipconfig1 != ""
 }
 
 /*
@@ -121,20 +112,11 @@ storage:xxx
 */
 func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (err error) {
 	vmr.SetVmType("lxc")
-	fullclone := "1"
-	if config.FullClone != nil {
-		fullclone = strconv.Itoa(*config.FullClone)
-	}
-	storage := config.Storage
-	if disk0Storage, ok := config.LxcDisks[0]["storage"].(string); ok && len(disk0Storage) > 0 {
-		storage = disk0Storage
-	}
+
 	params := map[string]interface{}{
-		"newid":   vmr.vmId,
-		"target":  vmr.node,
-		"name":    config.Name,
-		"storage": storage,
-		"full":    fullclone,
+		"newid":    vmr.vmId,
+		"target":   vmr.node,
+		"hostname": config.Hostname,
 	}
 	_, err = client.CloneLxcVm(sourceVmr, params)
 	if err != nil {
@@ -145,28 +127,19 @@ func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (e
 
 func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	configParams := map[string]interface{}{
-		"name":        config.Name,
+		"hostname":    config.Hostname,
 		"description": config.Description,
 		"onboot":      config.Onboot,
-		"agent":       config.Agent,
-		"sockets":     config.LxcSockets,
-		"cores":       config.LxcCores,
+		"cores":       config.Cores,
 		"memory":      config.Memory,
 	}
 
 	// Create disks config.
-	config.CreateLxcDisksParams(vmr.vmId, configParams, true)
+	// config.CreateLxcDisksParams(vmr.vmId, configParams, true)
 
 	// Create networks config.
-	config.CreateLxcNetworksParams(vmr.vmId, configParams)
+	// config.CreateLxcNetworksParams(vmr.vmId, configParams)
 
-	// cloud-init options
-	if config.CIuser != "" {
-		configParams["ciuser"] = config.CIuser
-	}
-	if config.CIpassword != "" {
-		configParams["cipassword"] = config.CIpassword
-	}
 	if config.Searchdomain != "" {
 		configParams["searchdomain"] = config.Searchdomain
 	}
@@ -180,18 +153,12 @@ func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 		sshkeyEnc = strings.Replace(sshkeyEnc, "=", "%3D", -1)
 		configParams["sshkeys"] = sshkeyEnc
 	}
-	if config.Ipconfig0 != "" {
-		configParams["ipconfig0"] = config.Ipconfig0
-	}
-	if config.Ipconfig1 != "" {
-		configParams["ipconfig1"] = config.Ipconfig1
-	}
 	_, err = client.SetVmConfig(vmr, configParams)
 	return err
 }
 
 func NewConfigLxcFromJson(io io.Reader) (config *ConfigLxc, err error) {
-	config = &ConfigLxc{LxcVlanTag: -1}
+	//config = &ConfigLxc{LxcVlanTag: -1}
 	err = json.NewDecoder(io).Decode(config)
 	if err != nil {
 		log.Fatal(err)
@@ -231,9 +198,9 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	// description:Base image
 	// cores:2 ostype:l26
 
-	name := ""
-	if _, isSet := vmConfig["name"]; isSet {
-		name = vmConfig["name"].(string)
+	hostname := ""
+	if _, isSet := vmConfig["hostname"]; isSet {
+		hostname = vmConfig["hostname"].(string)
 	}
 	description := ""
 	if _, isSet := vmConfig["description"]; isSet {
@@ -242,10 +209,6 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	onboot := true
 	if _, isSet := vmConfig["onboot"]; isSet {
 		onboot = Itob(int(vmConfig["onboot"].(float64)))
-	}
-	agent := "1"
-	if _, isSet := vmConfig["agent"]; isSet {
-		agent = vmConfig["agent"].(string)
 	}
 	ostype := "other"
 	if _, isSet := vmConfig["ostype"]; isSet {
@@ -259,46 +222,20 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	if _, isSet := vmConfig["cores"]; isSet {
 		cores = vmConfig["cores"].(float64)
 	}
-	sockets := 1.0
-	if _, isSet := vmConfig["sockets"]; isSet {
-		sockets = vmConfig["sockets"].(float64)
-	}
 	config = &ConfigLxc{
-		Name:        name,
+		Hostname:    hostname,
 		Description: strings.TrimSpace(description),
 		Onboot:      onboot,
-		Agent:       agent,
-		LxcOs:       ostype,
+		Ostype:      ostype,
 		Memory:      int(memory),
-		LxcCores:    int(cores),
-		LxcSockets:  int(sockets),
-		LxcVlanTag:  -1,
-		LxcDisks:    LxcDevices{},
-		LxcNetworks: LxcDevices{},
+		Cores:       int(cores),
 	}
 
-	if vmConfig["ide2"] != nil {
-		isoMatch := rxIso.FindStringSubmatch(vmConfig["ide2"].(string))
-		config.LxcIso = isoMatch[1]
-	}
-
-	if _, isSet := vmConfig["ciuser"]; isSet {
-		config.CIuser = vmConfig["ciuser"].(string)
-	}
-	if _, isSet := vmConfig["cipassword"]; isSet {
-		config.CIpassword = vmConfig["cipassword"].(string)
-	}
 	if _, isSet := vmConfig["searchdomain"]; isSet {
 		config.Searchdomain = vmConfig["searchdomain"].(string)
 	}
 	if _, isSet := vmConfig["sshkeys"]; isSet {
 		config.Sshkeys, _ = url.PathUnescape(vmConfig["sshkeys"].(string))
-	}
-	if _, isSet := vmConfig["ipconfig0"]; isSet {
-		config.Ipconfig0 = vmConfig["ipconfig0"].(string)
-	}
-	if _, isSet := vmConfig["ipconfig1"]; isSet {
-		config.Ipconfig1 = vmConfig["ipconfig1"].(string)
 	}
 
 	// Add disks.
@@ -315,8 +252,8 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		diskConfList := strings.Split(diskConfStr.(string), ",")
 
 		//
-		id := rxDeviceID.FindStringSubmatch(diskName)
-		diskID, _ := strconv.Atoi(id[0])
+		// id := rxDeviceID.FindStringSubmatch(diskName)
+		// diskID, _ := strconv.Atoi(id[0])
 		diskType := rxDiskType.FindStringSubmatch(diskName)[0]
 		storageName, fileName := ParseSubConf(diskConfList[0], ":")
 
@@ -330,10 +267,6 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		// Add rest of device config.
 		diskConfMap.readDeviceConfig(diskConfList[1:])
 
-		// And device config to disks map.
-		if len(diskConfMap) > 0 {
-			config.LxcDisks[diskID] = diskConfMap
-		}
 	}
 
 	// Add networks.
@@ -351,8 +284,8 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		nicConfList := strings.Split(nicConfStr.(string), ",")
 
 		//
-		id := rxDeviceID.FindStringSubmatch(nicName)
-		nicID, _ := strconv.Atoi(id[0])
+		// id := rxDeviceID.FindStringSubmatch(nicName)
+		// nicID, _ := strconv.Atoi(id[0])
 		model, macaddr := ParseSubConf(nicConfList[0], "=")
 
 		// Add model and MAC address.
@@ -365,159 +298,159 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		nicConfMap.readDeviceConfig(nicConfList[1:])
 
 		// And device config to networks.
-		if len(nicConfMap) > 0 {
-			config.LxcNetworks[nicID] = nicConfMap
-		}
+		// if len(nicConfMap) > 0 {
+		// 	config.LxcNetworks[nicID] = nicConfMap
+		// }
 	}
 
 	return
 }
 
 // Create parameters for each Nic device.
-func (c ConfigLxc) CreateLxcNetworksParams(vmID int, params map[string]interface{}) error {
+// func (c ConfigLxc) CreateLxcNetworksParams(vmID int, params map[string]interface{}) error {
 
-	// For backward compatibility.
-	if len(c.LxcNetworks) == 0 && len(c.LxcNicModel) > 0 {
-		deprecatedStyleMap := LxcDevice{
-			"model":   c.LxcNicModel,
-			"bridge":  c.LxcBrige,
-			"macaddr": c.LxcMacAddr,
-		}
+// 	// For backward compatibility.
+// 	if len(c.LxcNetworks) == 0 && len(c.LxcNicModel) > 0 {
+// 		deprecatedStyleMap := LxcDevice{
+// 			"model":   c.LxcNicModel,
+// 			"bridge":  c.LxcBrige,
+// 			"macaddr": c.LxcMacAddr,
+// 		}
 
-		if c.LxcVlanTag > 0 {
-			deprecatedStyleMap["tag"] = strconv.Itoa(c.LxcVlanTag)
-		}
+// 		if c.LxcVlanTag > 0 {
+// 			deprecatedStyleMap["tag"] = strconv.Itoa(c.LxcVlanTag)
+// 		}
 
-		c.LxcNetworks[0] = deprecatedStyleMap
-	}
+// 		c.LxcNetworks[0] = deprecatedStyleMap
+// 	}
 
-	// For new style with multi net device.
-	for nicID, nicConfMap := range c.LxcNetworks {
+// 	// For new style with multi net device.
+// 	for nicID, nicConfMap := range c.LxcNetworks {
 
-		nicConfParam := LxcDeviceParam{}
+// 		nicConfParam := LxcDeviceParam{}
 
-		// Set Nic name.
-		lxcNicName := "net" + strconv.Itoa(nicID)
+// 		// Set Nic name.
+// 		lxcNicName := "net" + strconv.Itoa(nicID)
 
-		// Set Mac address.
-		if nicConfMap["macaddr"] == nil || nicConfMap["macaddr"].(string) == "" {
-			// Generate Mac based on VmID and NicID so it will be the same always.
-			macaddr := make(net.HardwareAddr, 6)
-			rand.Seed(time.Now().UnixNano())
-			rand.Read(macaddr)
-			macaddr[0] = (macaddr[0] | 2) & 0xfe // fix from github issue #18
-			macAddrUppr := strings.ToUpper(fmt.Sprintf("%v", macaddr))
-			// use model=mac format for older proxmox compatability
-			macAddr := fmt.Sprintf("%v=%v", nicConfMap["model"], macAddrUppr)
+// 		// Set Mac address.
+// 		if nicConfMap["macaddr"] == nil || nicConfMap["macaddr"].(string) == "" {
+// 			// Generate Mac based on VmID and NicID so it will be the same always.
+// 			macaddr := make(net.HardwareAddr, 6)
+// 			rand.Seed(time.Now().UnixNano())
+// 			rand.Read(macaddr)
+// 			macaddr[0] = (macaddr[0] | 2) & 0xfe // fix from github issue #18
+// 			macAddrUppr := strings.ToUpper(fmt.Sprintf("%v", macaddr))
+// 			// use model=mac format for older proxmox compatability
+// 			macAddr := fmt.Sprintf("%v=%v", nicConfMap["model"], macAddrUppr)
 
-			// Add Mac to source map so it will be returned. (useful for some use case like Terraform)
-			nicConfMap["macaddr"] = macAddrUppr
-			// and also add it to the parameters which will be sent to Proxmox API.
-			nicConfParam = append(nicConfParam, macAddr)
-		} else {
-			macAddr := fmt.Sprintf("%v=%v", nicConfMap["model"], nicConfMap["macaddr"].(string))
-			nicConfParam = append(nicConfParam, macAddr)
-		}
+// 			// Add Mac to source map so it will be returned. (useful for some use case like Terraform)
+// 			nicConfMap["macaddr"] = macAddrUppr
+// 			// and also add it to the parameters which will be sent to Proxmox API.
+// 			nicConfParam = append(nicConfParam, macAddr)
+// 		} else {
+// 			macAddr := fmt.Sprintf("%v=%v", nicConfMap["model"], nicConfMap["macaddr"].(string))
+// 			nicConfParam = append(nicConfParam, macAddr)
+// 		}
 
-		// Set bridge if not nat.
-		if nicConfMap["bridge"].(string) != "nat" {
-			bridge := fmt.Sprintf("bridge=%v", nicConfMap["bridge"])
-			nicConfParam = append(nicConfParam, bridge)
-		}
+// 		// Set bridge if not nat.
+// 		if nicConfMap["bridge"].(string) != "nat" {
+// 			bridge := fmt.Sprintf("bridge=%v", nicConfMap["bridge"])
+// 			nicConfParam = append(nicConfParam, bridge)
+// 		}
 
-		// Keys that are not used as real/direct conf.
-		ignoredKeys := []string{"id", "bridge", "macaddr", "model"}
+// 		// Keys that are not used as real/direct conf.
+// 		ignoredKeys := []string{"id", "bridge", "macaddr", "model"}
 
-		// Rest of config.
-		nicConfParam = nicConfParam.createDeviceParam(nicConfMap, ignoredKeys)
+// 		// Rest of config.
+// 		nicConfParam = nicConfParam.createDeviceParam(nicConfMap, ignoredKeys)
 
-		// Add nic to Lxc prams.
-		params[lxcNicName] = strings.Join(nicConfParam, ",")
-	}
+// 		// Add nic to Lxc prams.
+// 		params[lxcNicName] = strings.Join(nicConfParam, ",")
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-// Create parameters for each disk.
-func (c ConfigLxc) CreateLxcDisksParams(
-	vmID int,
-	params map[string]interface{},
-	cloned bool,
-) error {
+// // Create parameters for each disk.
+// func (c ConfigLxc) CreateLxcDisksParams(
+// 	vmID int,
+// 	params map[string]interface{},
+// 	cloned bool,
+// ) error {
 
-	// For backward compatibility.
-	if len(c.LxcDisks) == 0 && len(c.Storage) > 0 {
+// 	// For backward compatibility.
+// 	if len(c.LxcDisks) == 0 && len(c.Storage) > 0 {
 
-		dType := c.StorageType
-		if dType == "" {
-			if c.HasCloudInit() {
-				dType = "scsi"
-			} else {
-				dType = "virtio"
-			}
-		}
-		deprecatedStyleMap := LxcDevice{
-			"type":         dType,
-			"storage":      c.Storage,
-			"size":         c.DiskSize,
-			"storage_type": "lvm",  // default old style
-			"cache":        "none", // default old value
-		}
+// 		dType := c.StorageType
+// 		if dType == "" {
+// 			if c.HasCloudInit() {
+// 				dType = "scsi"
+// 			} else {
+// 				dType = "virtio"
+// 			}
+// 		}
+// 		deprecatedStyleMap := LxcDevice{
+// 			"type":         dType,
+// 			"storage":      c.Storage,
+// 			"size":         c.DiskSize,
+// 			"storage_type": "lvm",  // default old style
+// 			"cache":        "none", // default old value
+// 		}
 
-		c.LxcDisks[0] = deprecatedStyleMap
-	}
+// 		c.LxcDisks[0] = deprecatedStyleMap
+// 	}
 
-	// For new style with multi disk device.
-	for diskID, diskConfMap := range c.LxcDisks {
+// 	// For new style with multi disk device.
+// 	for diskID, diskConfMap := range c.LxcDisks {
 
-		// skip the first disk for clones (may not always be right, but a template probably has at least 1 disk)
-		if diskID == 0 && cloned {
-			continue
-		}
-		diskConfParam := LxcDeviceParam{
-			"media=disk",
-		}
+// 		// skip the first disk for clones (may not always be right, but a template probably has at least 1 disk)
+// 		if diskID == 0 && cloned {
+// 			continue
+// 		}
+// 		diskConfParam := LxcDeviceParam{
+// 			"media=disk",
+// 		}
 
-		// Device name.
-		deviceType := diskConfMap["type"].(string)
-		lxcDiskName := deviceType + strconv.Itoa(diskID)
+// 		// Device name.
+// 		deviceType := diskConfMap["type"].(string)
+// 		lxcDiskName := deviceType + strconv.Itoa(diskID)
 
-		// Set disk storage.
-		// Disk size.
-		diskSizeGB := fmt.Sprintf("size=%v", diskConfMap["size"])
-		diskConfParam = append(diskConfParam, diskSizeGB)
+// 		// Set disk storage.
+// 		// Disk size.
+// 		diskSizeGB := fmt.Sprintf("size=%v", diskConfMap["size"])
+// 		diskConfParam = append(diskConfParam, diskSizeGB)
 
-		// Disk name.
-		var diskFile string
-		// Currently ZFS local, LVM, and Directory are considered.
-		// Other formats are not verified, but could be added if they're needed.
-		rxStorageTypes := `(zfspool|lvm)`
-		storageType := diskConfMap["storage_type"].(string)
-		if matched, _ := regexp.MatchString(rxStorageTypes, storageType); matched {
-			diskFile = fmt.Sprintf("file=%v:vm-%v-disk-%v", diskConfMap["storage"], vmID, diskID)
-		} else {
-			diskFile = fmt.Sprintf("file=%v:%v/vm-%v-disk-%v.%v", diskConfMap["storage"], vmID, vmID, diskID, diskConfMap["format"])
-		}
-		diskConfParam = append(diskConfParam, diskFile)
+// 		// Disk name.
+// 		var diskFile string
+// 		// Currently ZFS local, LVM, and Directory are considered.
+// 		// Other formats are not verified, but could be added if they're needed.
+// 		rxStorageTypes := `(zfspool|lvm)`
+// 		storageType := diskConfMap["storage_type"].(string)
+// 		if matched, _ := regexp.MatchString(rxStorageTypes, storageType); matched {
+// 			diskFile = fmt.Sprintf("file=%v:vm-%v-disk-%v", diskConfMap["storage"], vmID, diskID)
+// 		} else {
+// 			diskFile = fmt.Sprintf("file=%v:%v/vm-%v-disk-%v.%v", diskConfMap["storage"], vmID, vmID, diskID, diskConfMap["format"])
+// 		}
+// 		diskConfParam = append(diskConfParam, diskFile)
 
-		// Set cache if not none (default).
-		if diskConfMap["cache"].(string) != "none" {
-			diskCache := fmt.Sprintf("cache=%v", diskConfMap["cache"])
-			diskConfParam = append(diskConfParam, diskCache)
-		}
+// 		// Set cache if not none (default).
+// 		if diskConfMap["cache"].(string) != "none" {
+// 			diskCache := fmt.Sprintf("cache=%v", diskConfMap["cache"])
+// 			diskConfParam = append(diskConfParam, diskCache)
+// 		}
 
-		// Keys that are not used as real/direct conf.
-		ignoredKeys := []string{"id", "type", "storage", "storage_type", "size", "cache"}
+// 		// Keys that are not used as real/direct conf.
+// 		ignoredKeys := []string{"id", "type", "storage", "storage_type", "size", "cache"}
 
-		// Rest of config.
-		diskConfParam = diskConfParam.createDeviceParam(diskConfMap, ignoredKeys)
+// 		// Rest of config.
+// 		diskConfParam = diskConfParam.createDeviceParam(diskConfMap, ignoredKeys)
 
-		// Add back to Lxc prams.
-		params[lxcDiskName] = strings.Join(diskConfParam, ",")
-	}
+// 		// Add back to Lxc prams.
+// 		params[lxcDiskName] = strings.Join(diskConfParam, ",")
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // Create the parameters for each device that will be sent to Proxmox API.
 func (p LxcDeviceParam) createDeviceParam(
