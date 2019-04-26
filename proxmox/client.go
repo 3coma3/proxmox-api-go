@@ -442,7 +442,68 @@ func (c *Client) RollbackQemuVm(vmr *VmRef, snapshot string) (exitStatus string,
 	return
 }
 
-// SetVmConfig - send config options
+func (c *Client) CreateLxcVm(node string, vmParams map[string]interface{}) (exitStatus string, err error) {
+	// Create VM disks first to ensure disks names.
+	createdDisks, createdDisksErr := c.createVMDisks(node, vmParams)
+	if createdDisksErr != nil {
+		return "", createdDisksErr
+	}
+
+	// Then create the VM itself.
+	reqbody := ParamsToBody(vmParams)
+	url := fmt.Sprintf("/nodes/%s/qemu", node)
+	var resp *http.Response
+	resp, err = c.session.Post(url, nil, nil, &reqbody)
+	defer resp.Body.Close()
+	if err != nil {
+		// This might not work if we never got a body. We'll ignore errors in trying to read,
+		// but extract the body if possible to give any error information back in the exitStatus
+		b, _ := ioutil.ReadAll(resp.Body)
+		exitStatus = string(b)
+		return exitStatus, err
+	}
+
+	taskResponse, err := ResponseJSON(resp)
+	if err != nil {
+		return "", err
+	}
+	exitStatus, err = c.WaitForCompletion(taskResponse)
+	// Delete VM disks if the VM didn't create.
+	if exitStatus != "OK" {
+		deleteDisksErr := c.DeleteVMDisks(node, createdDisks)
+		if deleteDisksErr != nil {
+			return "", deleteDisksErr
+		}
+	}
+
+	return
+}
+
+func (c *Client) CloneLxcVm(vmr *VmRef, vmParams map[string]interface{}) (exitStatus string, err error) {
+	reqbody := ParamsToBody(vmParams)
+	url := fmt.Sprintf("/nodes/%s/qemu/%d/clone", vmr.node, vmr.vmId)
+	resp, err := c.session.Post(url, nil, nil, &reqbody)
+	if err == nil {
+		taskResponse, err := ResponseJSON(resp)
+		if err != nil {
+			return "", err
+		}
+		exitStatus, err = c.WaitForCompletion(taskResponse)
+	}
+	return
+}
+
+func (c *Client) RollbackLxcVm(vmr *VmRef, snapshot string) (exitStatus string, err error) {
+	err = c.CheckVmRef(vmr)
+	if err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", vmr.node, vmr.vmType, vmr.vmId, snapshot)
+	var taskResponse map[string]interface{}
+	_, err = c.session.PostJSON(url, nil, nil, nil, &taskResponse)
+	exitStatus, err = c.WaitForCompletion(taskResponse)
+	return
+} // SetVmConfig - send config options
 func (c *Client) SetVmConfig(vmr *VmRef, vmParams map[string]interface{}) (exitStatus interface{}, err error) {
 	reqbody := ParamsToBody(vmParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vmr.node, vmr.vmType, vmr.vmId)
