@@ -21,7 +21,7 @@ type (
 	LxcDeviceParam []string
 )
 
-// ConfigLxc - Proxmox API QEMU options
+// ConfigLxc - Proxmox API LXC options
 type ConfigLxc struct {
 	Name        string     `json:"name"`
 	Description string     `json:"desc"`
@@ -65,7 +65,7 @@ func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
 	if config.HasCloudInit() {
 		return errors.New("Cloud-init parameters only supported on clones or updates")
 	}
-	vmr.SetVmType("qemu")
+	vmr.SetVmType("lxc")
 
 	params := map[string]interface{}{
 		"vmid":        vmr.vmId,
@@ -110,7 +110,7 @@ func (config ConfigLxc) HasCloudInit() bool {
 CloneVm
 Example: Request
 
-nodes/proxmox1-xx/qemu/1012/clone
+nodes/proxmox1-xx/lxc/1012/clone
 
 newid:145
 name:tf-clone1
@@ -120,7 +120,7 @@ storage:xxx
 
 */
 func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (err error) {
-	vmr.SetVmType("qemu")
+	vmr.SetVmType("lxc")
 	fullclone := "1"
 	if config.FullClone != nil {
 		fullclone = strconv.Itoa(*config.FullClone)
@@ -397,7 +397,7 @@ func (c ConfigLxc) CreateLxcNetworksParams(vmID int, params map[string]interface
 		nicConfParam := LxcDeviceParam{}
 
 		// Set Nic name.
-		qemuNicName := "net" + strconv.Itoa(nicID)
+		lxcNicName := "net" + strconv.Itoa(nicID)
 
 		// Set Mac address.
 		if nicConfMap["macaddr"] == nil || nicConfMap["macaddr"].(string) == "" {
@@ -432,7 +432,7 @@ func (c ConfigLxc) CreateLxcNetworksParams(vmID int, params map[string]interface
 		nicConfParam = nicConfParam.createDeviceParam(nicConfMap, ignoredKeys)
 
 		// Add nic to Lxc prams.
-		params[qemuNicName] = strings.Join(nicConfParam, ",")
+		params[lxcNicName] = strings.Join(nicConfParam, ",")
 	}
 
 	return nil
@@ -480,7 +480,7 @@ func (c ConfigLxc) CreateLxcDisksParams(
 
 		// Device name.
 		deviceType := diskConfMap["type"].(string)
-		qemuDiskName := deviceType + strconv.Itoa(diskID)
+		lxcDiskName := deviceType + strconv.Itoa(diskID)
 
 		// Set disk storage.
 		// Disk size.
@@ -513,7 +513,7 @@ func (c ConfigLxc) CreateLxcDisksParams(
 		diskConfParam = diskConfParam.createDeviceParam(diskConfMap, ignoredKeys)
 
 		// Add back to Lxc prams.
-		params[qemuDiskName] = strings.Join(diskConfParam, ",")
+		params[lxcDiskName] = strings.Join(diskConfParam, ",")
 	}
 
 	return nil
