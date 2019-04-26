@@ -16,25 +16,25 @@ import (
 )
 
 type (
-	QemuDevices     map[int]map[string]interface{}
-	QemuDevice      map[string]interface{}
-	QemuDeviceParam []string
+	LxcDevices     map[int]map[string]interface{}
+	LxcDevice      map[string]interface{}
+	LxcDeviceParam []string
 )
 
-// ConfigQemu - Proxmox API QEMU options
-type ConfigQemu struct {
-	Name         string      `json:"name"`
-	Description  string      `json:"desc"`
-	Onboot       bool        `json:"onboot"`
-	Agent        string      `json:"agent"`
-	Memory       int         `json:"memory"`
-	QemuOs       string      `json:"os"`
-	QemuCores    int         `json:"cores"`
-	QemuSockets  int         `json:"sockets"`
-	QemuIso      string      `json:"iso"`
-	FullClone    *int        `json:"fullclone"`
-	QemuDisks    QemuDevices `json:"disk"`
-	QemuNetworks QemuDevices `json:"network"`
+// ConfigLxc - Proxmox API QEMU options
+type ConfigLxc struct {
+	Name        string     `json:"name"`
+	Description string     `json:"desc"`
+	Onboot      bool       `json:"onboot"`
+	Agent       string     `json:"agent"`
+	Memory      int        `json:"memory"`
+	LxcOs       string     `json:"os"`
+	LxcCores    int        `json:"cores"`
+	LxcSockets  int        `json:"sockets"`
+	LxcIso      string     `json:"iso"`
+	FullClone   *int       `json:"fullclone"`
+	LxcDisks    LxcDevices `json:"disk"`
+	LxcNetworks LxcDevices `json:"network"`
 
 	// Deprecated single disk.
 	DiskSize    float64 `json:"diskGB"`
@@ -42,10 +42,10 @@ type ConfigQemu struct {
 	StorageType string  `json:"storageType"` // virtio|scsi (cloud-init defaults to scsi)
 
 	// Deprecated single nic.
-	QemuNicModel string `json:"nic"`
-	QemuBrige    string `json:"bridge"`
-	QemuVlanTag  int    `json:"vlan"`
-	QemuMacAddr  string `json:"mac"`
+	LxcNicModel string `json:"nic"`
+	LxcBrige    string `json:"bridge"`
+	LxcVlanTag  int    `json:"vlan"`
+	LxcMacAddr  string `json:"mac"`
 
 	// cloud-init options
 	CIuser     string `json:"ciuser"`
@@ -61,7 +61,7 @@ type ConfigQemu struct {
 }
 
 // CreateVm - Tell Proxmox API to make the VM
-func (config ConfigQemu) CreateVm(vmr *VmRef, client *Client) (err error) {
+func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
 	if config.HasCloudInit() {
 		return errors.New("Cloud-init parameters only supported on clones or updates")
 	}
@@ -72,22 +72,22 @@ func (config ConfigQemu) CreateVm(vmr *VmRef, client *Client) (err error) {
 		"name":        config.Name,
 		"onboot":      config.Onboot,
 		"agent":       config.Agent,
-		"ide2":        config.QemuIso + ",media=cdrom",
-		"ostype":      config.QemuOs,
-		"sockets":     config.QemuSockets,
-		"cores":       config.QemuCores,
+		"ide2":        config.LxcIso + ",media=cdrom",
+		"ostype":      config.LxcOs,
+		"sockets":     config.LxcSockets,
+		"cores":       config.LxcCores,
 		"cpu":         "host",
 		"memory":      config.Memory,
 		"description": config.Description,
 	}
 
 	// Create disks config.
-	config.CreateQemuDisksParams(vmr.vmId, params, false)
+	config.CreateLxcDisksParams(vmr.vmId, params, false)
 
 	// Create networks config.
-	config.CreateQemuNetworksParams(vmr.vmId, params)
+	config.CreateLxcNetworksParams(vmr.vmId, params)
 
-	exitStatus, err := client.CreateQemuVm(vmr.node, params)
+	exitStatus, err := client.CreateLxcVm(vmr.node, params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
@@ -95,7 +95,7 @@ func (config ConfigQemu) CreateVm(vmr *VmRef, client *Client) (err error) {
 }
 
 // HasCloudInit - are there cloud-init options?
-func (config ConfigQemu) HasCloudInit() bool {
+func (config ConfigLxc) HasCloudInit() bool {
 	return config.CIuser != "" ||
 		config.CIpassword != "" ||
 		config.Searchdomain != "" ||
@@ -119,14 +119,14 @@ full:1
 storage:xxx
 
 */
-func (config ConfigQemu) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (err error) {
+func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (err error) {
 	vmr.SetVmType("qemu")
 	fullclone := "1"
 	if config.FullClone != nil {
 		fullclone = strconv.Itoa(*config.FullClone)
 	}
 	storage := config.Storage
-	if disk0Storage, ok := config.QemuDisks[0]["storage"].(string); ok && len(disk0Storage) > 0 {
+	if disk0Storage, ok := config.LxcDisks[0]["storage"].(string); ok && len(disk0Storage) > 0 {
 		storage = disk0Storage
 	}
 	params := map[string]interface{}{
@@ -136,29 +136,29 @@ func (config ConfigQemu) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (
 		"storage": storage,
 		"full":    fullclone,
 	}
-	_, err = client.CloneQemuVm(sourceVmr, params)
+	_, err = client.CloneLxcVm(sourceVmr, params)
 	if err != nil {
 		return
 	}
 	return config.UpdateConfig(vmr, client)
 }
 
-func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {
+func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	configParams := map[string]interface{}{
 		"name":        config.Name,
 		"description": config.Description,
 		"onboot":      config.Onboot,
 		"agent":       config.Agent,
-		"sockets":     config.QemuSockets,
-		"cores":       config.QemuCores,
+		"sockets":     config.LxcSockets,
+		"cores":       config.LxcCores,
 		"memory":      config.Memory,
 	}
 
 	// Create disks config.
-	config.CreateQemuDisksParams(vmr.vmId, configParams, true)
+	config.CreateLxcDisksParams(vmr.vmId, configParams, true)
 
 	// Create networks config.
-	config.CreateQemuNetworksParams(vmr.vmId, configParams)
+	config.CreateLxcNetworksParams(vmr.vmId, configParams)
 
 	// cloud-init options
 	if config.CIuser != "" {
@@ -190,8 +190,8 @@ func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	return err
 }
 
-func NewConfigQemuFromJson(io io.Reader) (config *ConfigQemu, err error) {
-	config = &ConfigQemu{QemuVlanTag: -1}
+func NewConfigLxcFromJson(io io.Reader) (config *ConfigLxc, err error) {
+	config = &ConfigLxc{LxcVlanTag: -1}
 	err = json.NewDecoder(io).Decode(config)
 	if err != nil {
 		log.Fatal(err)
@@ -209,7 +209,7 @@ var (
 	rxNicName  = regexp.MustCompile(`net\d+`)
 )
 
-func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err error) {
+func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err error) {
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
 		vmConfig, err = client.GetVmConfig(vmr)
@@ -271,23 +271,23 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 	if _, isSet := vmConfig["sockets"]; isSet {
 		sockets = vmConfig["sockets"].(float64)
 	}
-	config = &ConfigQemu{
-		Name:         name,
-		Description:  strings.TrimSpace(description),
-		Onboot:       onboot,
-		Agent:        agent,
-		QemuOs:       ostype,
-		Memory:       int(memory),
-		QemuCores:    int(cores),
-		QemuSockets:  int(sockets),
-		QemuVlanTag:  -1,
-		QemuDisks:    QemuDevices{},
-		QemuNetworks: QemuDevices{},
+	config = &ConfigLxc{
+		Name:        name,
+		Description: strings.TrimSpace(description),
+		Onboot:      onboot,
+		Agent:       agent,
+		LxcOs:       ostype,
+		Memory:      int(memory),
+		LxcCores:    int(cores),
+		LxcSockets:  int(sockets),
+		LxcVlanTag:  -1,
+		LxcDisks:    LxcDevices{},
+		LxcNetworks: LxcDevices{},
 	}
 
 	if vmConfig["ide2"] != nil {
 		isoMatch := rxIso.FindStringSubmatch(vmConfig["ide2"].(string))
-		config.QemuIso = isoMatch[1]
+		config.LxcIso = isoMatch[1]
 	}
 
 	if _, isSet := vmConfig["ciuser"]; isSet {
@@ -329,7 +329,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 		storageName, fileName := ParseSubConf(diskConfList[0], ":")
 
 		//
-		diskConfMap := QemuDevice{
+		diskConfMap := LxcDevice{
 			"type":    diskType,
 			"storage": storageName,
 			"file":    fileName,
@@ -340,7 +340,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 
 		// And device config to disks map.
 		if len(diskConfMap) > 0 {
-			config.QemuDisks[diskID] = diskConfMap
+			config.LxcDisks[diskID] = diskConfMap
 		}
 	}
 
@@ -364,7 +364,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 		model, macaddr := ParseSubConf(nicConfList[0], "=")
 
 		// Add model and MAC address.
-		nicConfMap := QemuDevice{
+		nicConfMap := LxcDevice{
 			"model":   model,
 			"macaddr": macaddr,
 		}
@@ -374,7 +374,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 
 		// And device config to networks.
 		if len(nicConfMap) > 0 {
-			config.QemuNetworks[nicID] = nicConfMap
+			config.LxcNetworks[nicID] = nicConfMap
 		}
 	}
 
@@ -519,27 +519,27 @@ func SendKeysString(vmr *VmRef, client *Client, keys string) (err error) {
 }
 
 // Create parameters for each Nic device.
-func (c ConfigQemu) CreateQemuNetworksParams(vmID int, params map[string]interface{}) error {
+func (c ConfigLxc) CreateLxcNetworksParams(vmID int, params map[string]interface{}) error {
 
 	// For backward compatibility.
-	if len(c.QemuNetworks) == 0 && len(c.QemuNicModel) > 0 {
-		deprecatedStyleMap := QemuDevice{
-			"model":   c.QemuNicModel,
-			"bridge":  c.QemuBrige,
-			"macaddr": c.QemuMacAddr,
+	if len(c.LxcNetworks) == 0 && len(c.LxcNicModel) > 0 {
+		deprecatedStyleMap := LxcDevice{
+			"model":   c.LxcNicModel,
+			"bridge":  c.LxcBrige,
+			"macaddr": c.LxcMacAddr,
 		}
 
-		if c.QemuVlanTag > 0 {
-			deprecatedStyleMap["tag"] = strconv.Itoa(c.QemuVlanTag)
+		if c.LxcVlanTag > 0 {
+			deprecatedStyleMap["tag"] = strconv.Itoa(c.LxcVlanTag)
 		}
 
-		c.QemuNetworks[0] = deprecatedStyleMap
+		c.LxcNetworks[0] = deprecatedStyleMap
 	}
 
 	// For new style with multi net device.
-	for nicID, nicConfMap := range c.QemuNetworks {
+	for nicID, nicConfMap := range c.LxcNetworks {
 
-		nicConfParam := QemuDeviceParam{}
+		nicConfParam := LxcDeviceParam{}
 
 		// Set Nic name.
 		qemuNicName := "net" + strconv.Itoa(nicID)
@@ -576,7 +576,7 @@ func (c ConfigQemu) CreateQemuNetworksParams(vmID int, params map[string]interfa
 		// Rest of config.
 		nicConfParam = nicConfParam.createDeviceParam(nicConfMap, ignoredKeys)
 
-		// Add nic to Qemu prams.
+		// Add nic to Lxc prams.
 		params[qemuNicName] = strings.Join(nicConfParam, ",")
 	}
 
@@ -584,14 +584,14 @@ func (c ConfigQemu) CreateQemuNetworksParams(vmID int, params map[string]interfa
 }
 
 // Create parameters for each disk.
-func (c ConfigQemu) CreateQemuDisksParams(
+func (c ConfigLxc) CreateLxcDisksParams(
 	vmID int,
 	params map[string]interface{},
 	cloned bool,
 ) error {
 
 	// For backward compatibility.
-	if len(c.QemuDisks) == 0 && len(c.Storage) > 0 {
+	if len(c.LxcDisks) == 0 && len(c.Storage) > 0 {
 
 		dType := c.StorageType
 		if dType == "" {
@@ -601,7 +601,7 @@ func (c ConfigQemu) CreateQemuDisksParams(
 				dType = "virtio"
 			}
 		}
-		deprecatedStyleMap := QemuDevice{
+		deprecatedStyleMap := LxcDevice{
 			"type":         dType,
 			"storage":      c.Storage,
 			"size":         c.DiskSize,
@@ -609,17 +609,17 @@ func (c ConfigQemu) CreateQemuDisksParams(
 			"cache":        "none", // default old value
 		}
 
-		c.QemuDisks[0] = deprecatedStyleMap
+		c.LxcDisks[0] = deprecatedStyleMap
 	}
 
 	// For new style with multi disk device.
-	for diskID, diskConfMap := range c.QemuDisks {
+	for diskID, diskConfMap := range c.LxcDisks {
 
 		// skip the first disk for clones (may not always be right, but a template probably has at least 1 disk)
 		if diskID == 0 && cloned {
 			continue
 		}
-		diskConfParam := QemuDeviceParam{
+		diskConfParam := LxcDeviceParam{
 			"media=disk",
 		}
 
@@ -657,7 +657,7 @@ func (c ConfigQemu) CreateQemuDisksParams(
 		// Rest of config.
 		diskConfParam = diskConfParam.createDeviceParam(diskConfMap, ignoredKeys)
 
-		// Add back to Qemu prams.
+		// Add back to Lxc prams.
 		params[qemuDiskName] = strings.Join(diskConfParam, ",")
 	}
 
@@ -665,10 +665,10 @@ func (c ConfigQemu) CreateQemuDisksParams(
 }
 
 // Create the parameters for each device that will be sent to Proxmox API.
-func (p QemuDeviceParam) createDeviceParam(
-	deviceConfMap QemuDevice,
+func (p LxcDeviceParam) createDeviceParam(
+	deviceConfMap LxcDevice,
 	ignoredKeys []string,
-) QemuDeviceParam {
+) LxcDeviceParam {
 
 	for key, value := range deviceConfMap {
 		if ignored := inArray(ignoredKeys, key); !ignored {
@@ -691,7 +691,7 @@ func (p QemuDeviceParam) createDeviceParam(
 }
 
 // readDeviceConfig - get standard sub-conf strings where `key=value` and update conf map.
-func (confMap QemuDevice) readDeviceConfig(confList []string) error {
+func (confMap LxcDevice) readDeviceConfig(confList []string) error {
 	// Add device config.
 	for _, conf := range confList {
 		key, value := ParseSubConf(conf, "=")
@@ -700,7 +700,7 @@ func (confMap QemuDevice) readDeviceConfig(confList []string) error {
 	return nil
 }
 
-func (c ConfigQemu) String() string {
+func (c ConfigLxc) String() string {
 	jsConf, _ := json.Marshal(c)
 	return string(jsConf)
 }
