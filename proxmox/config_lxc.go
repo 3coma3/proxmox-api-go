@@ -24,7 +24,7 @@ type (
 // ConfigLxc - Proxmox API LXC options
 type ConfigLxc struct {
 	Arch        string `json:"arch"`
-	Cmode       int    `json:"cmode"`
+	Cmode       string `json:"cmode"`
 	Console     bool   `json:"console"`
 	Cores       int    `json:"cores"`
 	Cpulimit    int    `json:"cpulimit"`
@@ -33,7 +33,7 @@ type ConfigLxc struct {
 	Digest      string `json:"digest"`
 	Features    string `json:"features"`
 	Hookscript  string `json:"hookscript"`
-	Hostname    string `json:"name"`
+	Hostname    string `json:"hostname"`
 	// Lock		enum
 	Memory int `json:"memory"`
 	// Mp[n]	string `json:"volumes"`
@@ -75,7 +75,7 @@ func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
 		"ostype":       config.Ostype,
 		"protection":   config.Protection,
 		"rootfs":       config.Rootfs,
-		"Swap":         config.Searchdomain,
+		"Swap":         config.Swap,
 		"searchdomain": config.Searchdomain,
 		"template":     config.Template,
 		"tty":          config.Tty,
@@ -157,18 +157,48 @@ func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	return err
 }
 
+// this factory returns a new struct with the members set to the PVEAPI defaults
+func NewConfigLxc() *ConfigLxc {
+	return &ConfigLxc{
+		Arch:         "arch64",
+		Cmode:        "tty",
+		Console:      true,
+		Cores:        1,
+		Cpulimit:     0,
+		Cpuunits:     1024,
+		Description:  "",
+		Digest:       "",
+		Features:     "",
+		Hookscript:   "",
+		Hostname:     "",
+		Memory:       512,
+		Nameserver:   "",
+		Net:          LxcDevices{},
+		Onboot:       false,
+		Ostype:       "unmanaged",
+		Protection:   false,
+		Rootfs:       "",
+		Searchdomain: "",
+		Swap:         512,
+		Template:     false,
+		Tty:          2,
+		Unprivileged: false,
+	}
+}
+
 func NewConfigLxcFromJson(io io.Reader) (config *ConfigLxc, err error) {
-	config = &ConfigLxc{}
+	config = NewConfigLxc()
 	err = json.NewDecoder(io).Decode(config)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
-	log.Println(config)
 	return
 }
 
 func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err error) {
+	config = NewConfigLxc()
+
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
 		vmConfig, err = client.GetVmConfig(vmr)
@@ -189,84 +219,75 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		return nil, errors.New("vm locked, could not obtain config")
 	}
 
-	// vmConfig Sample: map[ cpu:host
-	// net0:virtio=62:DF:XX:XX:XX:XX,bridge=vmbr0
-	// ide2:local:iso/xxx-xx.iso,media=cdrom memory:2048
-	// smbios1:uuid=8b3bf833-aad8-4545-xxx-xxxxxxx digest:aa6ce5xxxxx1b9ce33e4aaeff564d4 sockets:1
-	// name:terraform-ubuntu1404-template bootdisk:virtio0
-	// virtio0:ProxmoxxxxISCSI:vm-1014-disk-2,size=4G
-	// description:Base image
-	// cores:2 ostype:l26
-
-	hostname := ""
-	if _, isSet := vmConfig["hostname"]; isSet {
-		hostname = vmConfig["hostname"].(string)
+	if _, isSet := vmConfig["arch"]; isSet {
+		config.Arch = vmConfig["arch"].(string)
 	}
-	description := ""
-	if _, isSet := vmConfig["description"]; isSet {
-		description = vmConfig["description"].(string)
+	if _, isSet := vmConfig["cmode"]; isSet {
+		config.Cmode = vmConfig["cmode"].(string)
 	}
-	onboot := true
-	if _, isSet := vmConfig["onboot"]; isSet {
-		onboot = Itob(int(vmConfig["onboot"].(float64)))
+	if _, isSet := vmConfig["console"]; isSet {
+		config.Console = Itob(int(vmConfig["console"].(float64)))
 	}
-	ostype := "other"
-	if _, isSet := vmConfig["ostype"]; isSet {
-		ostype = vmConfig["ostype"].(string)
-	}
-	memory := 0.0
-	if _, isSet := vmConfig["memory"]; isSet {
-		memory = vmConfig["memory"].(float64)
-	}
-	cores := 1.0
 	if _, isSet := vmConfig["cores"]; isSet {
-		cores = vmConfig["cores"].(float64)
+		config.Cores = int(vmConfig["cores"].(float64))
 	}
-	config = &ConfigLxc{
-		Hostname:    hostname,
-		Description: strings.TrimSpace(description),
-		Onboot:      onboot,
-		Ostype:      ostype,
-		Memory:      int(memory),
-		Cores:       int(cores),
+	if _, isSet := vmConfig["cpulimit"]; isSet {
+		config.Cpulimit = int(vmConfig["cpulimit"].(float64))
 	}
-
+	if _, isSet := vmConfig["cpuunits"]; isSet {
+		config.Cpuunits = int(vmConfig["cpuunits"].(float64))
+	}
+	if _, isSet := vmConfig["description"]; isSet {
+		config.Description = vmConfig["description"].(string)
+	}
+	if _, isSet := vmConfig["digest"]; isSet {
+		config.Digest = vmConfig["digest"].(string)
+	}
+	if _, isSet := vmConfig["features"]; isSet {
+		config.Features = vmConfig["features"].(string)
+	}
+	if _, isSet := vmConfig["hookscript"]; isSet {
+		config.Hookscript = vmConfig["hookscript"].(string)
+	}
+	if _, isSet := vmConfig["hostname"]; isSet {
+		config.Hostname = vmConfig["hostname"].(string)
+	}
+	if _, isSet := vmConfig["memory"]; isSet {
+		config.Memory = int(vmConfig["memory"].(float64))
+	}
+	if _, isSet := vmConfig["nameserver"]; isSet {
+		config.Nameserver = vmConfig["nameserver"].(string)
+	}
+	if _, isSet := vmConfig["onboot"]; isSet {
+		config.Onboot = Itob(int(vmConfig["onboot"].(float64)))
+	}
+	if _, isSet := vmConfig["ostype"]; isSet {
+		config.Ostype = vmConfig["ostype"].(string)
+	}
+	if _, isSet := vmConfig["protection"]; isSet {
+		config.Protection = Itob(int(vmConfig["protection"].(float64)))
+	}
+	if _, isSet := vmConfig["rootfs"]; isSet {
+		config.Rootfs = vmConfig["rootfs"].(string)
+	}
 	if _, isSet := vmConfig["searchdomain"]; isSet {
 		config.Searchdomain = vmConfig["searchdomain"].(string)
 	}
+	if _, isSet := vmConfig["swap"]; isSet {
+		config.Swap = int(vmConfig["swap"].(float64))
+	}
+	if _, isSet := vmConfig["template"]; isSet {
+		config.Template = Itob(int(vmConfig["template"].(float64)))
+	}
+	if _, isSet := vmConfig["tty"]; isSet {
+		config.Tty = int(vmConfig["tty"].(float64))
+	}
+	if _, isSet := vmConfig["unprivileged"]; isSet {
+		config.Unprivileged = Itob(int(vmConfig["unprivileged"].(float64)))
+	}
+
 	if _, isSet := vmConfig["sshkeys"]; isSet {
 		config.Sshkeys, _ = url.PathUnescape(vmConfig["sshkeys"].(string))
-	}
-
-	// Add disks.
-	diskNames := []string{}
-
-	for k, _ := range vmConfig {
-		if diskName := rxDiskName.FindStringSubmatch(k); len(diskName) > 0 {
-			diskNames = append(diskNames, diskName[0])
-		}
-	}
-
-	for _, diskName := range diskNames {
-		diskConfStr := vmConfig[diskName]
-		diskConfList := strings.Split(diskConfStr.(string), ",")
-
-		//
-		// id := rxDeviceID.FindStringSubmatch(diskName)
-		// diskID, _ := strconv.Atoi(id[0])
-		diskType := rxDiskType.FindStringSubmatch(diskName)[0]
-		storageName, fileName := ParseSubConf(diskConfList[0], ":")
-
-		//
-		diskConfMap := LxcDevice{
-			"type":    diskType,
-			"storage": storageName,
-			"file":    fileName,
-		}
-
-		// Add rest of device config.
-		diskConfMap.readDeviceConfig(diskConfList[1:])
-
 	}
 
 	// Add networks.
