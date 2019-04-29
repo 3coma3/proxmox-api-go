@@ -10,7 +10,7 @@ import (
 	// "net"
 	"net/url"
 	"regexp"
-	// "strconv"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -302,29 +302,22 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 
 	for _, nicName := range nicNames {
 		nicConfStr := vmConfig[nicName]
+
 		nicConfList := strings.Split(nicConfStr.(string), ",")
 
-		//
-		// id := rxDeviceID.FindStringSubmatch(nicName)
-		// nicID, _ := strconv.Atoi(id[0])
-		model, macaddr := ParseSubConf(nicConfList[0], "=")
+		id := rxDeviceID.FindStringSubmatch(nicName)
+		nicID, _ := strconv.Atoi(id[0])
 
-		// Add model and MAC address.
-		nicConfMap := LxcDevice{
-			"model":   model,
-			"macaddr": macaddr,
-		}
-
-		// Add rest of device config.
-		nicConfMap.readDeviceConfig(nicConfList[1:])
+		nicConfMap := LxcDevice{}
+		nicConfMap.readDeviceConfig(nicConfList)
 
 		// And device config to networks.
-		// if len(nicConfMap) > 0 {
-		// 	config.LxcNetworks[nicID] = nicConfMap
-		// }
+		if len(nicConfMap) > 0 {
+			config.Net[nicID] = nicConfMap
+		}
 	}
 
-	return
+	return config, nil
 }
 
 // Create parameters for each Nic device.
