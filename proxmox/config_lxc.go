@@ -35,21 +35,21 @@ type ConfigLxc struct {
 	Hookscript  string `json:"hookscript"`
 	Hostname    string `json:"hostname"`
 	// Lock		enum
-	Memory int `json:"memory"`
-	// Mp[n]	string `json:"volumes"`
+	Memory       int        `json:"memory"`
+	Mp           LxcDevices `json:"mp"`
 	Nameserver   string     `json:"nameserver"`
 	Net          LxcDevices `json:"net"`
 	Onboot       bool       `json:"onboot"`
 	Ostype       string     `json:"ostype"`
 	Protection   bool       `json:"protection"`
-	Rootfs       string     `json:"rootfs"`
+	Rootfs       LxcDevice  `json:"rootfs"`
 	Searchdomain string     `json:"searchdomain"`
-	// Startup  string `json:"startup"`
-	Swap         int    `json:"swap"`
-	Template     bool   `json:"template"`
-	Tty          int    `json:"tty"`
-	Unprivileged bool   `json:"unprivileged"`
-	Sshkeys      string `json:"sshkeys"`
+	Startup      string     `json:"startup"`
+	Swap         int        `json:"swap"`
+	Template     bool       `json:"template"`
+	Tty          int        `json:"tty"`
+	Unprivileged bool       `json:"unprivileged"`
+	Sshkeys      string     `json:"sshkeys"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
@@ -172,12 +172,13 @@ func NewConfigLxc() *ConfigLxc {
 		Hookscript:   "",
 		Hostname:     "",
 		Memory:       512,
+		Mp:           LxcDevices{},
 		Nameserver:   "",
 		Net:          LxcDevices{},
 		Onboot:       false,
 		Ostype:       "unmanaged",
 		Protection:   false,
-		Rootfs:       "",
+		Rootfs:       LxcDevice{},
 		Searchdomain: "",
 		Swap:         512,
 		Template:     false,
@@ -268,7 +269,10 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		config.Protection = Itob(int(vmConfig["protection"].(float64)))
 	}
 	if _, isSet := vmConfig["rootfs"]; isSet {
-		config.Rootfs = vmConfig["rootfs"].(string)
+		rootFsConfList := strings.Split(vmConfig["rootfs"].(string), ",")
+		config.Rootfs.readDeviceConfig(rootFsConfList)
+		delete(config.Rootfs, "")
+		config.Rootfs["volume"] = rootFsConfList[0]
 	}
 	if _, isSet := vmConfig["searchdomain"]; isSet {
 		config.Searchdomain = vmConfig["searchdomain"].(string)
@@ -290,10 +294,35 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		config.Sshkeys, _ = url.PathUnescape(vmConfig["sshkeys"].(string))
 	}
 
+	// Add mountpoints
+	mpNameRe := regexp.MustCompile(`mp\d+`)
+	mps := []string{}
+	for k, _ := range vmConfig {
+		if mpName := mpNameRe.FindStringSubmatch(k); len(mpName) > 0 {
+			mps = append(mps, mpName[0])
+		}
+	}
+
+	for _, mpName := range mps {
+		mpConfList := strings.Split(vmConfig[mpName].(string), ",")
+
+		mpConfMap := LxcDevice{}
+		mpConfMap.readDeviceConfig(mpConfList)
+
+		delete(mpConfMap, "")
+		mpConfMap["volume"] = mpConfList[0]
+
+		// And device config to mountpoints
+		if len(mpConfMap) > 0 {
+			id := rxDeviceID.FindStringSubmatch(mpName)
+			mpID, _ := strconv.Atoi(id[0])
+			config.Mp[mpID] = mpConfMap
+		}
+	}
+
 	// Add networks.
 	nicNameRe := regexp.MustCompile(`net\d+`)
 	nicNames := []string{}
-
 	for k, _ := range vmConfig {
 		if nicName := nicNameRe.FindStringSubmatch(k); len(nicName) > 0 {
 			nicNames = append(nicNames, nicName[0])
@@ -301,18 +330,15 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	}
 
 	for _, nicName := range nicNames {
-		nicConfStr := vmConfig[nicName]
-
-		nicConfList := strings.Split(nicConfStr.(string), ",")
-
-		id := rxDeviceID.FindStringSubmatch(nicName)
-		nicID, _ := strconv.Atoi(id[0])
+		nicConfList := strings.Split(vmConfig[nicName].(string), ",")
 
 		nicConfMap := LxcDevice{}
 		nicConfMap.readDeviceConfig(nicConfList)
 
 		// And device config to networks.
 		if len(nicConfMap) > 0 {
+			id := rxDeviceID.FindStringSubmatch(nicName)
+			nicID, _ := strconv.Atoi(id[0])
 			config.Net[nicID] = nicConfMap
 		}
 	}
