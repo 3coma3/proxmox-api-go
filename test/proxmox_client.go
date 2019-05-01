@@ -64,6 +64,11 @@ func init() {
 		return client.GetVmSpiceProxy(vmr)
 	}
 
+	testActions["client_createtemplate"] = func(options *TOptions) (response interface{}, err error) {
+		client, vmr := newClientAndVmr(options)
+		return nil, client.CreateTemplate(vmr)
+	}
+
 	testActions["client_monitorcmd"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
 		return client.MonitorCmd(vmr, options.Args[1])

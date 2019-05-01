@@ -258,8 +258,9 @@ func (c *Client) CreateTemplate(vmr *VmRef) error {
 		return err
 	}
 
+	reqbody := ParamsToBody(map[string]interface{}{"experimental": true})
 	url := fmt.Sprintf("/nodes/%s/%s/%d/template", vmr.node, vmr.vmType, vmr.vmId)
-	_, err = c.session.Post(url, nil, nil, nil)
+	_, err = c.session.Post(url, nil, nil, &reqbody)
 	if err != nil {
 		return err
 	}
