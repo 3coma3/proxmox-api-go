@@ -390,19 +390,31 @@ func (c ConfigLxc) CreateLxcMpParams(
 		diskSizeGB := fmt.Sprintf("size=%v", diskConfMap["size"])
 		diskConfParam = append(diskConfParam, diskSizeGB)
 
-		// full disk name
-		// for now hardcode the different scheme for rootfs automatic creation
+		// full disk name, this is of the form storage:filename
+		// if the filename parameter is defined in JSON (comes from user input),
+		// set it from that (volumes must been previously set up)
 		var diskFile string
-		if diskID == 1 {
-			diskSize := diskConfMap["size"].(string)
-			diskFile = fmt.Sprintf("%v:%v", diskConfMap["storage"], diskSize[:(strings.IndexAny(diskSize, "MG"))])
+		if fileName, ok := diskConfMap["filename"]; ok {
+			diskFile = fmt.Sprintf("volume=%v:%v", diskConfMap["storage"], fileName.(string))
 		} else {
-			diskFile = fmt.Sprintf("volume=%v:vm-%v-disk-%v", diskConfMap["storage"], vmID, diskID)
+			// for automatic creation the filename index is hardcoded
+			// TODO: add autodetection of existant volumes and act accordingly
+			if diskID == 1 {
+				diskSize := diskConfMap["size"].(string)
+				// the format for rootfs automatic creation seems to be
+				// undocumented
+				diskFile = fmt.Sprintf("%v:%v", diskConfMap["storage"], diskSize[:(strings.IndexAny(diskSize, "G"))])
+			} else {
+				// note that automatic creation for mp volumes will make CT
+				// creation fail if they aren't formatted
+				// TODO: add automatic formatting / fs specification
+				diskFile = fmt.Sprintf("volume=%v:vm-%v-disk-%v", diskConfMap["storage"], vmID, diskID)
+			}
 		}
 		diskConfParam = append(diskConfParam, diskFile)
 
 		// keys that are not used as real/direct conf (or have been added above)
-		ignoredKeys := []string{"id", "storage", "size"}
+		ignoredKeys := []string{"id", "storage", "size", "filename"}
 
 		// rest of config
 		diskConfParam = diskConfParam.createDeviceParam(diskConfMap, ignoredKeys)

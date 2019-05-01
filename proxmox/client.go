@@ -563,6 +563,7 @@ func (c *Client) GetNextID(currentID int) (nextID int, err error) {
 }
 
 // CreateVMDisk - Create single disk for VM on host node.
+// TODO: add autodetection of existant volumes and act accordingly
 func (c *Client) CreateVMDisk(
 	nodeName string,
 	storageName string,
@@ -588,6 +589,8 @@ func (c *Client) CreateVMDisk(
 }
 
 // createVMDisks - Make disks parameters and create all VM disks on host node.
+// TODO: add autodetection of existant volumes and act accordingly
+// TODO: merge sections for VM and CT volumes
 func (c *Client) createVMDisks(
 	node string,
 	vmParams map[string]interface{},
@@ -622,6 +625,7 @@ func (c *Client) createVMDisks(
 		}
 
 		// CT mount points
+		// when autocreation features are added, rootfs can be added here
 		rxCTVolumes := `(mp\d+)`
 		matched, _ = regexp.MatchString(rxCTVolumes, deviceName)
 		if matched {
