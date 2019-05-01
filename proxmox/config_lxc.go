@@ -177,8 +177,13 @@ func NewConfigLxc() *ConfigLxc {
 	}
 }
 
-func NewConfigLxcFromJson(io io.Reader) (config *ConfigLxc, err error) {
-	config = NewConfigLxc()
+func NewConfigLxcFromJson(io io.Reader, bare bool) (config *ConfigLxc, err error) {
+	if bare {
+		config = &ConfigLxc{}
+	} else {
+		config = NewConfigLxc()
+	}
+
 	err = json.NewDecoder(io).Decode(config)
 	if err != nil {
 		log.Fatal(err)

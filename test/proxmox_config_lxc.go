@@ -11,7 +11,7 @@ func init() {
 	testActions["configlxc_createvm"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
 
-		config, err := proxmox.NewConfigLxcFromJson(os.Stdin)
+		config, err := proxmox.NewConfigLxcFromJson(os.Stdin, false)
 		failOnError(err)
 
 		vmr.SetNode(options.Args[1])
@@ -22,7 +22,7 @@ func init() {
 	testActions["configlxc_clonevm"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
 
-		config, err := proxmox.NewConfigLxcFromJson(os.Stdin)
+		config, err := proxmox.NewConfigLxcFromJson(os.Stdin, true)
 		failOnError(err)
 
 		DebugMsg("Looking for template: " + options.VMname)
@@ -42,7 +42,7 @@ func init() {
 	testActions["configlxc_updateconfig"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
 
-		config, err := proxmox.NewConfigLxcFromJson(os.Stdin)
+		config, err := proxmox.NewConfigLxcFromJson(os.Stdin, true)
 		failOnError(err)
 
 		vminfo, err := client.GetVmInfo(vmr)
@@ -55,7 +55,7 @@ func init() {
 	}
 
 	testActions["configlxc_newconfiglxcfromjson"] = func(options *TOptions) (response interface{}, err error) {
-		return proxmox.NewConfigLxcFromJson(os.Stdin)
+		return proxmox.NewConfigLxcFromJson(os.Stdin, false)
 	}
 
 	testActions["configlxc_newconfiglxcfromapi"] = func(options *TOptions) (response interface{}, err error) {
