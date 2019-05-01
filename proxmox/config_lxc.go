@@ -27,7 +27,6 @@ type ConfigLxc struct {
 	Cmode        string     `json:"cmode"`
 	Console      bool       `json:"console"`
 	Cores        int        `json:"cores"`
-	Cpulimit     int        `json:"cpulimit"`
 	Cpuunits     int        `json:"cpuunits"`
 	Description  string     `json:"description"`
 	Digest       string     `json:"digest"`
@@ -60,7 +59,6 @@ func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
 		"cmode":           config.Cmode,
 		"console":         config.Console,
 		"cores":           config.Cores,
-		"cpulimit":        config.Cpulimit,
 		"cpuunits":        config.Cpuunits,
 		"description":     config.Description,
 		"hostname":        config.Hostname,
@@ -158,7 +156,6 @@ func NewConfigLxc() *ConfigLxc {
 		Cmode:        "tty",
 		Console:      true,
 		Cores:        1,
-		Cpulimit:     0,
 		Cpuunits:     1024,
 		Description:  "",
 		Digest:       "",
@@ -224,9 +221,6 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	}
 	if _, isSet := vmConfig["cores"]; isSet {
 		config.Cores = int(vmConfig["cores"].(float64))
-	}
-	if _, isSet := vmConfig["cpulimit"]; isSet {
-		config.Cpulimit = int(vmConfig["cpulimit"].(float64))
 	}
 	if _, isSet := vmConfig["cpuunits"]; isSet {
 		config.Cpuunits = int(vmConfig["cpuunits"].(float64))
