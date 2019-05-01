@@ -118,34 +118,54 @@ func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (e
 }
 
 func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
-	configParams := map[string]interface{}{
-		"hostname":    config.Hostname,
-		"description": config.Description,
-		"onboot":      config.Onboot,
-		"cores":       config.Cores,
-		"memory":      config.Memory,
+	params := map[string]interface{}{}
+
+	if config.Arch != "" {
+		params["arch"] = config.Arch
 	}
-
-	// Create disks config.
-	// config.CreateLxcDisksParams(vmr.vmId, configParams, true)
-
-	// Create networks config.
-	// config.CreateLxcNetworksParams(vmr.vmId, configParams)
-
-	if config.Searchdomain != "" {
-		configParams["searchdomain"] = config.Searchdomain
+	if config.Description != "" {
+		params["hostname"] = config.Description
+	}
+	if config.Hostname != "" {
+		params["hostname"] = config.Hostname
 	}
 	if config.Nameserver != "" {
-		configParams["nameserver"] = config.Nameserver
+		params["nameserver"] = config.Nameserver
 	}
-	if config.Sshkeys != "" {
-		sshkeyEnc := url.PathEscape(config.Sshkeys + "\n")
-		sshkeyEnc = strings.Replace(sshkeyEnc, "+", "%2B", -1)
-		sshkeyEnc = strings.Replace(sshkeyEnc, "@", "%40", -1)
-		sshkeyEnc = strings.Replace(sshkeyEnc, "=", "%3D", -1)
-		configParams["sshkeys"] = sshkeyEnc
+	if config.Ostype != "" {
+		params["ostype"] = config.Ostype
 	}
-	_, err = client.SetVmConfig(vmr, configParams)
+	if config.Searchdomain != "" {
+		params["searchdomain"] = config.Searchdomain
+	}
+
+	// Decoder.Decode uses the struct, which "always" will have its members
+	// set by default to a zero value. The zero value can't be tell apart from
+	// user supplied values like false or 0, so this will preclude using these
+	// numeric and bool parameters as they can't be properly detected
+	// The best way to avoid this is to use json.UnmarshalJSON automatic parsing
+	// features with pointers and rely on a map instead of a struct.
+	// An added benefit will be way less translations and boilerplate between
+	// user and PVEAPI data formats (as much as 5 down to 1 at many points)
+
+	// For now, these parameters have to be explicited in the user JSON unless
+	// it's desired to use their zero value
+	params["console"] = config.Console
+	params["cores"] = config.Cores
+	params["cpuunits"] = config.Cpuunits
+	params["memory"] = config.Memory
+	params["ostype"] = config.Ostype
+	params["protection"] = config.Protection
+	params["swap"] = config.Swap
+	params["tty"] = config.Tty
+
+	// Create mountpoints config.
+	config.CreateLxcMpParams(vmr.vmId, params, true)
+
+	// Create networks config.
+	config.CreateLxcNetParams(vmr.vmId, params)
+
+	_, err = client.SetVmConfig(vmr, params)
 	return err
 }
 
@@ -421,7 +441,10 @@ func (c ConfigLxc) CreateLxcMpParams(
 		return strings.Join(diskConfParam, ",")
 	}
 
-	params["rootfs"] = diskConfStr(1, c.Rootfs)
+	// don't set up rootfs if it isn't defined
+	if c.Rootfs != nil {
+		params["rootfs"] = diskConfStr(1, c.Rootfs)
+	}
 
 	for diskID, diskConfMap := range c.Mp {
 		params["mp"+strconv.Itoa(diskID)] = diskConfStr(diskID+2, diskConfMap)

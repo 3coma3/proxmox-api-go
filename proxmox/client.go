@@ -461,7 +461,17 @@ func (c *Client) CloneLxcVm(vmr *VmRef, vmParams map[string]interface{}) (exitSt
 func (c *Client) SetVmConfig(vmr *VmRef, vmParams map[string]interface{}) (exitStatus interface{}, err error) {
 	reqbody := ParamsToBody(vmParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vmr.node, vmr.vmType, vmr.vmId)
-	resp, err := c.session.Post(url, nil, nil, &reqbody)
+
+	var resp *http.Response
+
+	// Use the POST async API to update qemu VMs, PUT (only method available)
+	// for CTs
+	if vmr.vmType == "qemu" {
+		resp, err = c.session.Post(url, nil, nil, &reqbody)
+	} else {
+		resp, err = c.session.Put(url, nil, nil, &reqbody)
+	}
+
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
 		if err != nil {
