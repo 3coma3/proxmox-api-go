@@ -23,33 +23,31 @@ type (
 
 // ConfigLxc - Proxmox API LXC options
 type ConfigLxc struct {
-	Arch        string `json:"arch"`
-	Cmode       string `json:"cmode"`
-	Console     bool   `json:"console"`
-	Cores       int    `json:"cores"`
-	Cpulimit    int    `json:"cpulimit"`
-	Cpuunits    int    `json:"cpuunits"`
-	Description string `json:"description"`
-	Digest      string `json:"digest"`
-	Features    string `json:"features"`
-	Hookscript  string `json:"hookscript"`
-	Hostname    string `json:"hostname"`
-	// Lock		enum
+	Arch         string     `json:"arch"`
+	Cmode        string     `json:"cmode"`
+	Console      bool       `json:"console"`
+	Cores        int        `json:"cores"`
+	Cpulimit     int        `json:"cpulimit"`
+	Cpuunits     int        `json:"cpuunits"`
+	Description  string     `json:"description"`
+	Digest       string     `json:"digest"`
+	Hostname     string     `json:"hostname"`
 	Memory       int        `json:"memory"`
 	Mp           LxcDevices `json:"mp"`
 	Nameserver   string     `json:"nameserver"`
 	Net          LxcDevices `json:"net"`
 	Onboot       bool       `json:"onboot"`
 	Ostype       string     `json:"ostype"`
+	Ostemplate   string     `json:"ostemplate"`
+	Password     string     `json:"password"`
 	Protection   bool       `json:"protection"`
 	Rootfs       LxcDevice  `json:"rootfs"`
 	Searchdomain string     `json:"searchdomain"`
 	Startup      string     `json:"startup"`
+	Sshkeys      string     `json:"ssh-public-keys"`
 	Swap         int        `json:"swap"`
-	Template     bool       `json:"template"`
 	Tty          int        `json:"tty"`
 	Unprivileged bool       `json:"unprivileged"`
-	Sshkeys      string     `json:"sshkeys"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
@@ -157,10 +155,10 @@ func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	return err
 }
 
-// this factory returns a new struct with the members set to the PVEAPI defaults
+// this factory returns a new struct with the members set to defaults
 func NewConfigLxc() *ConfigLxc {
 	return &ConfigLxc{
-		Arch:         "arch64",
+		Arch:         "amd64",
 		Cmode:        "tty",
 		Console:      true,
 		Cores:        1,
@@ -168,8 +166,6 @@ func NewConfigLxc() *ConfigLxc {
 		Cpuunits:     1024,
 		Description:  "",
 		Digest:       "",
-		Features:     "",
-		Hookscript:   "",
 		Hostname:     "",
 		Memory:       512,
 		Mp:           LxcDevices{},
@@ -180,8 +176,9 @@ func NewConfigLxc() *ConfigLxc {
 		Protection:   false,
 		Rootfs:       LxcDevice{},
 		Searchdomain: "",
+		Sshkeys:      "",
 		Swap:         512,
-		Template:     false,
+		Ostemplate:   "",
 		Tty:          2,
 		Unprivileged: false,
 	}
@@ -244,12 +241,6 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	if _, isSet := vmConfig["digest"]; isSet {
 		config.Digest = vmConfig["digest"].(string)
 	}
-	if _, isSet := vmConfig["features"]; isSet {
-		config.Features = vmConfig["features"].(string)
-	}
-	if _, isSet := vmConfig["hookscript"]; isSet {
-		config.Hookscript = vmConfig["hookscript"].(string)
-	}
 	if _, isSet := vmConfig["hostname"]; isSet {
 		config.Hostname = vmConfig["hostname"].(string)
 	}
@@ -270,9 +261,8 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	}
 	if _, isSet := vmConfig["rootfs"]; isSet {
 		rootFsConfList := strings.Split(vmConfig["rootfs"].(string), ",")
-		config.Rootfs.readDeviceConfig(rootFsConfList)
-		delete(config.Rootfs, "")
-		config.Rootfs["volume"] = rootFsConfList[0]
+		config.Rootfs["storage"], config.Rootfs["file"] = ParseSubConf(rootFsConfList[0], ":")
+		config.Rootfs.readDeviceConfig(rootFsConfList[1:])
 	}
 	if _, isSet := vmConfig["searchdomain"]; isSet {
 		config.Searchdomain = vmConfig["searchdomain"].(string)
@@ -280,8 +270,8 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	if _, isSet := vmConfig["swap"]; isSet {
 		config.Swap = int(vmConfig["swap"].(float64))
 	}
-	if _, isSet := vmConfig["template"]; isSet {
-		config.Template = Itob(int(vmConfig["template"].(float64)))
+	if _, isSet := vmConfig["ostemplate"]; isSet {
+		config.Ostemplate = vmConfig["ostemplate"].(string)
 	}
 	if _, isSet := vmConfig["tty"]; isSet {
 		config.Tty = int(vmConfig["tty"].(float64))
@@ -290,8 +280,8 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		config.Unprivileged = Itob(int(vmConfig["unprivileged"].(float64)))
 	}
 
-	if _, isSet := vmConfig["sshkeys"]; isSet {
-		config.Sshkeys, _ = url.PathUnescape(vmConfig["sshkeys"].(string))
+	if _, isSet := vmConfig["ssh-public-keys"]; isSet {
+		config.Sshkeys, _ = url.PathUnescape(vmConfig["ssh-public-keys"].(string))
 	}
 
 	// Add mountpoints
@@ -307,12 +297,10 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		mpConfList := strings.Split(vmConfig[mpName].(string), ",")
 
 		mpConfMap := LxcDevice{}
-		mpConfMap.readDeviceConfig(mpConfList)
+		mpConfMap["storage"], mpConfMap["file"] = ParseSubConf(mpConfList[0], ":")
 
-		delete(mpConfMap, "")
-		mpConfMap["volume"] = mpConfList[0]
+		mpConfMap.readDeviceConfig(mpConfList[1:])
 
-		// And device config to mountpoints
 		if len(mpConfMap) > 0 {
 			id := rxDeviceID.FindStringSubmatch(mpName)
 			mpID, _ := strconv.Atoi(id[0])
@@ -335,7 +323,6 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 		nicConfMap := LxcDevice{}
 		nicConfMap.readDeviceConfig(nicConfList)
 
-		// And device config to networks.
 		if len(nicConfMap) > 0 {
 			id := rxDeviceID.FindStringSubmatch(nicName)
 			nicID, _ := strconv.Atoi(id[0])
