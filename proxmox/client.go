@@ -451,7 +451,7 @@ func (c *Client) CreateLxcVm(node string, vmParams map[string]interface{}) (exit
 
 	// Then create the VM itself.
 	reqbody := ParamsToBody(vmParams)
-	url := fmt.Sprintf("/nodes/%s/qemu", node)
+	url := fmt.Sprintf("/nodes/%s/lxc", node)
 	var resp *http.Response
 	resp, err = c.session.Post(url, nil, nil, &reqbody)
 	defer resp.Body.Close()
@@ -569,7 +569,6 @@ func (c *Client) CreateVMDisk(
 	fullDiskName string,
 	diskParams map[string]interface{},
 ) error {
-
 	reqbody := ParamsToBody(diskParams)
 	url := fmt.Sprintf("/nodes/%s/storage/%s/content", nodeName, storageName)
 	resp, err := c.session.Post(url, nil, nil, &reqbody)
@@ -593,27 +592,56 @@ func (c *Client) createVMDisks(
 	node string,
 	vmParams map[string]interface{},
 ) (disks []string, err error) {
-	var createdDisks []string
+	var (
+		storageName  string
+		volumeName   string
+		fullDiskName string
+		diskParams   map[string]interface{}
+		createdDisks []string
+	)
+
 	vmID := vmParams["vmid"].(int)
 	for deviceName, deviceConf := range vmParams {
+		diskParams = map[string]interface{}{}
+
+		// VM disks
 		rxStorageModels := `(ide|sata|scsi|virtio)\d+`
-		if matched, _ := regexp.MatchString(rxStorageModels, deviceName); matched {
+		matched, _ := regexp.MatchString(rxStorageModels, deviceName)
+		if matched {
 			deviceConfMap := ParseConf(deviceConf.(string), ",", "=")
 			// This if condition to differentiate between `disk` and `cdrom`.
 			if media, containsFile := deviceConfMap["media"]; containsFile && media == "disk" {
-				fullDiskName := deviceConfMap["file"].(string)
-				storageName, volumeName := getStorageAndVolumeName(fullDiskName, ":")
-				diskParams := map[string]interface{}{
+				fullDiskName = deviceConfMap["file"].(string)
+				storageName, volumeName = getStorageAndVolumeName(fullDiskName, ":")
+				diskParams = map[string]interface{}{
 					"vmid":     vmID,
 					"filename": volumeName,
 					"size":     deviceConfMap["size"],
 				}
-				err := c.CreateVMDisk(node, storageName, fullDiskName, diskParams)
-				if err != nil {
-					return createdDisks, err
-				} else {
-					createdDisks = append(createdDisks, fullDiskName)
-				}
+			}
+		}
+
+		// CT mount points
+		rxCTVolumes := `(mp\d+)`
+		matched, _ = regexp.MatchString(rxCTVolumes, deviceName)
+		if matched {
+			deviceConfMap := ParseConf(deviceConf.(string), ",", "=")
+
+			fullDiskName = deviceConfMap["volume"].(string)
+			storageName, volumeName = getStorageAndVolumeName(fullDiskName, ":")
+			diskParams = map[string]interface{}{
+				"vmid":     vmID,
+				"filename": volumeName,
+				"size":     deviceConfMap["size"],
+			}
+		}
+
+		if len(diskParams) > 0 {
+			err := c.CreateVMDisk(node, storageName, fullDiskName, diskParams)
+			if err != nil {
+				return createdDisks, err
+			} else {
+				createdDisks = append(createdDisks, fullDiskName)
 			}
 		}
 	}
