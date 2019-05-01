@@ -125,15 +125,15 @@ func init() {
 
 	// moved to configqemu_createvm, as it would involve replicating here the
 	// target method anyway, so that test suffices
-	testActions["client_createqemuvm"] = errNotImplemented
+	testActions["client_createvm"] = errNotImplemented
 
 	// moved to configqemu_clone, as it would involve replicating here the
 	// target method anyway, so that test suffices
 	testActions["client_cloneqemuvm"] = errNotImplemented
 
-	testActions["client_rollbackqemuvm"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["client_rollbackvm"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
-		return client.RollbackQemuVm(vmr, options.Args[1])
+		return client.RollbackVm(vmr, options.Args[1])
 	}
 
 	// moved to configqemu_updateconfig, as it would involve replicating here the

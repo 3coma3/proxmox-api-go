@@ -87,7 +87,7 @@ func (config ConfigQemu) CreateVm(vmr *VmRef, client *Client) (err error) {
 	// Create networks config.
 	config.CreateQemuNetworksParams(vmr.vmId, params)
 
-	exitStatus, err := client.CreateQemuVm(vmr.node, params)
+	exitStatus, err := client.CreateVm(vmr, params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
