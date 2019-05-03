@@ -23,30 +23,31 @@ type (
 
 // ConfigLxc - Proxmox API LXC options
 type ConfigLxc struct {
-	Arch         string     `json:"arch"`
-	Cmode        string     `json:"cmode"`
-	Console      bool       `json:"console"`
-	Cores        int        `json:"cores"`
-	Cpuunits     int        `json:"cpuunits"`
-	Description  string     `json:"description"`
-	Digest       string     `json:"digest"`
-	Hostname     string     `json:"hostname"`
-	Memory       int        `json:"memory"`
-	Mp           LxcDevices `json:"mp"`
-	Nameserver   string     `json:"nameserver"`
-	Net          LxcDevices `json:"net"`
-	Onboot       bool       `json:"onboot"`
-	Ostype       string     `json:"ostype"`
-	Ostemplate   string     `json:"ostemplate"`
-	Password     string     `json:"password"`
-	Protection   bool       `json:"protection"`
-	Rootfs       LxcDevice  `json:"rootfs"`
-	Searchdomain string     `json:"searchdomain"`
-	Startup      string     `json:"startup"`
-	Sshkeys      string     `json:"ssh-public-keys"`
-	Swap         int        `json:"swap"`
-	Tty          int        `json:"tty"`
-	Unprivileged bool       `json:"unprivileged"`
+	Arch         string                 `json:"arch"`
+	Cmode        string                 `json:"cmode"`
+	Console      bool                   `json:"console"`
+	Cores        int                    `json:"cores"`
+	Cpuunits     int                    `json:"cpuunits"`
+	Description  string                 `json:"description"`
+	Digest       string                 `json:"digest"`
+	Hostname     string                 `json:"hostname"`
+	Memory       int                    `json:"memory"`
+	Mp           LxcDevices             `json:"mp"`
+	Nameserver   string                 `json:"nameserver"`
+	Net          LxcDevices             `json:"net"`
+	Onboot       bool                   `json:"onboot"`
+	Ostype       string                 `json:"ostype"`
+	Ostemplate   string                 `json:"ostemplate"`
+	Password     string                 `json:"password"`
+	Protection   bool                   `json:"protection"`
+	Rootfs       LxcDevice              `json:"rootfs"`
+	Searchdomain string                 `json:"searchdomain"`
+	Startup      string                 `json:"startup"`
+	Sshkeys      string                 `json:"ssh-public-keys"`
+	Swap         int                    `json:"swap"`
+	Tty          int                    `json:"tty"`
+	Unprivileged bool                   `json:"unprivileged"`
+	CloneParams  map[string]interface{} `json:"clone"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
@@ -105,11 +106,9 @@ storage:xxx
 func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (err error) {
 	vmr.SetVmType("lxc")
 
-	params := map[string]interface{}{
-		"newid":    vmr.vmId,
-		"target":   vmr.node,
-		"hostname": config.Hostname,
-	}
+	config.CloneParams["newid"] = vmr.vmId
+	config.CloneParams["target"] = vmr.node
+
 	_, err = client.CloneVm(sourceVmr, config.CloneParams)
 	if err != nil {
 		return
