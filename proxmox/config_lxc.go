@@ -124,7 +124,7 @@ func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 		params["arch"] = config.Arch
 	}
 	if config.Description != "" {
-		params["hostname"] = config.Description
+		params["description"] = config.Description
 	}
 	if config.Hostname != "" {
 		params["hostname"] = config.Hostname
