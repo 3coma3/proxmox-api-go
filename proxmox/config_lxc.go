@@ -77,10 +77,10 @@ func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
 	}
 
 	// Create mountpoints config.
-	config.CreateLxcMpParams(vmr.vmId, params, false)
+	config.CreateMpParams(vmr.vmId, params, false)
 
 	// Create networks config.
-	config.CreateLxcNetParams(vmr.vmId, params)
+	config.CreateNetParams(vmr.vmId, params)
 
 	exitStatus, err := client.CreateVm(vmr, params)
 	if err != nil {
@@ -159,10 +159,10 @@ func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	params["tty"] = config.Tty
 
 	// Create mountpoints config.
-	config.CreateLxcMpParams(vmr.vmId, params, true)
+	config.CreateMpParams(vmr.vmId, params, true)
 
 	// Create networks config.
-	config.CreateLxcNetParams(vmr.vmId, params)
+	config.CreateNetParams(vmr.vmId, params)
 
 	_, err = client.SetVmConfig(vmr, params)
 	return err
@@ -348,7 +348,7 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 }
 
 // Create parameters for each Nic device.
-func (c ConfigLxc) CreateLxcNetParams(vmID int, params map[string]interface{}) error {
+func (c ConfigLxc) CreateNetParams(vmID int, params map[string]interface{}) error {
 	for nicID, nicConfMap := range c.Net {
 
 		nicConfParam := LxcDeviceParam{}
@@ -396,7 +396,7 @@ func (c ConfigLxc) CreateLxcNetParams(vmID int, params map[string]interface{}) e
 }
 
 // Create parameters for each mountpoint
-func (c ConfigLxc) CreateLxcMpParams(
+func (c ConfigLxc) CreateMpParams(
 	vmID int,
 	params map[string]interface{},
 	cloned bool,

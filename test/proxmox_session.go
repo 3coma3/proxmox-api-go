@@ -32,10 +32,10 @@ func init() {
 		}
 
 		// Create disks config.
-		config.CreateQemuDisksParams(options.VMid, params, false)
+		config.CreateDisksParams(options.VMid, params, false)
 
 		// Create networks config.
-		config.CreateQemuNetworksParams(options.VMid, params)
+		config.CreateNetParams(options.VMid, params)
 
 		return proxmox.ParamsToBody(params), nil
 	}

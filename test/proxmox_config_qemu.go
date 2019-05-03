@@ -95,7 +95,7 @@ func init() {
 		return nil, proxmox.SendKeysString(vmr, client, options.Args[1])
 	}
 
-	testActions["configqemu_createqemunetworksparams"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["configqemu_createnetparams"] = func(options *TOptions) (response interface{}, err error) {
 		// only the json for the network is needed on stdin
 		inputparams := proxmox.QemuDevice{}
 
@@ -105,7 +105,7 @@ func init() {
 		// put the map as QemuNetworks[0] as if it were built by
 		// NewConfigQemuFromJson
 		config := &proxmox.ConfigQemu{
-			QemuNetworks: proxmox.QemuDevices{0: inputparams},
+			Net: proxmox.QemuDevices{0: inputparams},
 		}
 
 		// so now this method can build the PVEAPI-compatible "premap"
@@ -113,10 +113,10 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.QemuDevice{}
-		return premap, config.CreateQemuNetworksParams(options.VMid, premap)
+		return premap, config.CreateNetParams(options.VMid, premap)
 	}
 
-	testActions["configqemu_createqemudisksparams"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["configqemu_createdisksparams"] = func(options *TOptions) (response interface{}, err error) {
 		// only the json for the network interfaces is needed on stdin
 		inputparams := proxmox.QemuDevice{}
 
@@ -126,7 +126,7 @@ func init() {
 		// put the map as QemuDisks[0] as if it were built by
 		// NewConfigQemuFromJson
 		config := &proxmox.ConfigQemu{
-			QemuDisks: proxmox.QemuDevices{0: inputparams},
+			Disk: proxmox.QemuDevices{0: inputparams},
 		}
 
 		// so now this method can build the PVEAPI-compatible "premap"
@@ -134,7 +134,7 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.QemuDevice{}
-		return premap, config.CreateQemuDisksParams(options.VMid, premap, false)
+		return premap, config.CreateDisksParams(options.VMid, premap, false)
 	}
 
 }

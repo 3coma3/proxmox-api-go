@@ -23,29 +23,17 @@ type (
 
 // ConfigQemu - Proxmox API QEMU options
 type ConfigQemu struct {
-	Name         string      `json:"name"`
-	Description  string      `json:"desc"`
-	Onboot       bool        `json:"onboot"`
-	Agent        string      `json:"agent"`
-	Memory       int         `json:"memory"`
-	QemuOs       string      `json:"os"`
-	QemuCores    int         `json:"cores"`
-	QemuSockets  int         `json:"sockets"`
-	QemuIso      string      `json:"iso"`
-	FullClone    *int        `json:"fullclone"`
-	QemuDisks    QemuDevices `json:"disk"`
-	QemuNetworks QemuDevices `json:"network"`
-
-	// Deprecated single disk.
-	DiskSize    float64 `json:"diskGB"`
-	Storage     string  `json:"storage"`
-	StorageType string  `json:"storageType"` // virtio|scsi (cloud-init defaults to scsi)
-
-	// Deprecated single nic.
-	QemuNicModel string `json:"nic"`
-	QemuBrige    string `json:"bridge"`
-	QemuVlanTag  int    `json:"vlan"`
-	QemuMacAddr  string `json:"mac"`
+	Name        string      `json:"name"`
+	Description string      `json:"desc"`
+	Onboot      bool        `json:"onboot"`
+	Agent       string      `json:"agent"`
+	Memory      int         `json:"memory"`
+	QemuOs      string      `json:"os"`
+	QemuCores   int         `json:"cores"`
+	QemuSockets int         `json:"sockets"`
+	QemuIso     string      `json:"iso"`
+	Disk        QemuDevices `json:"disk"`
+	Net         QemuDevices `json:"net"`
 
 	// cloud-init options
 	CIuser     string `json:"ciuser"`
@@ -84,10 +72,10 @@ func (config ConfigQemu) CreateVm(vmr *VmRef, client *Client) (err error) {
 	}
 
 	// Create disks config.
-	config.CreateQemuDisksParams(vmr.vmId, params, false)
+	config.CreateDisksParams(vmr.vmId, params, false)
 
 	// Create networks config.
-	config.CreateQemuNetworksParams(vmr.vmId, params)
+	config.CreateNetParams(vmr.vmId, params)
 
 	exitStatus, err := client.CreateVm(vmr, params)
 	if err != nil {
@@ -145,10 +133,10 @@ func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	}
 
 	// Create disks config.
-	config.CreateQemuDisksParams(vmr.vmId, configParams, true)
+	config.CreateDisksParams(vmr.vmId, configParams, true)
 
 	// Create networks config.
-	config.CreateQemuNetworksParams(vmr.vmId, configParams)
+	config.CreateNetParams(vmr.vmId, configParams)
 
 	// cloud-init options
 	if config.CIuser != "" {
@@ -181,7 +169,8 @@ func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 }
 
 func NewConfigQemuFromJson(io io.Reader) (config *ConfigQemu, err error) {
-	config = &ConfigQemu{QemuVlanTag: -1}
+	config = &ConfigQemu{}
+
 	err = json.NewDecoder(io).Decode(config)
 	if err != nil {
 		log.Fatal(err)
@@ -262,17 +251,16 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 		sockets = vmConfig["sockets"].(float64)
 	}
 	config = &ConfigQemu{
-		Name:         name,
-		Description:  strings.TrimSpace(description),
-		Onboot:       onboot,
-		Agent:        agent,
-		QemuOs:       ostype,
-		Memory:       int(memory),
-		QemuCores:    int(cores),
-		QemuSockets:  int(sockets),
-		QemuVlanTag:  -1,
-		QemuDisks:    QemuDevices{},
-		QemuNetworks: QemuDevices{},
+		Name:        name,
+		Description: strings.TrimSpace(description),
+		Onboot:      onboot,
+		Agent:       agent,
+		QemuOs:      ostype,
+		Memory:      int(memory),
+		QemuCores:   int(cores),
+		QemuSockets: int(sockets),
+		Disk:        QemuDevices{},
+		Net:         QemuDevices{},
 	}
 
 	if vmConfig["ide2"] != nil {
@@ -330,7 +318,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 
 		// And device config to disks map.
 		if len(diskConfMap) > 0 {
-			config.QemuDisks[diskID] = diskConfMap
+			config.Disk[diskID] = diskConfMap
 		}
 	}
 
@@ -364,7 +352,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 
 		// And device config to networks.
 		if len(nicConfMap) > 0 {
-			config.QemuNetworks[nicID] = nicConfMap
+			config.Net[nicID] = nicConfMap
 		}
 	}
 
@@ -509,25 +497,8 @@ func SendKeysString(vmr *VmRef, client *Client, keys string) (err error) {
 }
 
 // Create parameters for each Nic device.
-func (c ConfigQemu) CreateQemuNetworksParams(vmID int, params map[string]interface{}) error {
-
-	// For backward compatibility.
-	if len(c.QemuNetworks) == 0 && len(c.QemuNicModel) > 0 {
-		deprecatedStyleMap := QemuDevice{
-			"model":   c.QemuNicModel,
-			"bridge":  c.QemuBrige,
-			"macaddr": c.QemuMacAddr,
-		}
-
-		if c.QemuVlanTag > 0 {
-			deprecatedStyleMap["tag"] = strconv.Itoa(c.QemuVlanTag)
-		}
-
-		c.QemuNetworks[0] = deprecatedStyleMap
-	}
-
-	// For new style with multi net device.
-	for nicID, nicConfMap := range c.QemuNetworks {
+func (c ConfigQemu) CreateNetParams(vmID int, params map[string]interface{}) error {
+	for nicID, nicConfMap := range c.Net {
 
 		nicConfParam := QemuDeviceParam{}
 
@@ -574,36 +545,12 @@ func (c ConfigQemu) CreateQemuNetworksParams(vmID int, params map[string]interfa
 }
 
 // Create parameters for each disk.
-func (c ConfigQemu) CreateQemuDisksParams(
+func (c ConfigQemu) CreateDisksParams(
 	vmID int,
 	params map[string]interface{},
 	cloned bool,
 ) error {
-
-	// For backward compatibility.
-	if len(c.QemuDisks) == 0 && len(c.Storage) > 0 {
-
-		dType := c.StorageType
-		if dType == "" {
-			if c.HasCloudInit() {
-				dType = "scsi"
-			} else {
-				dType = "virtio"
-			}
-		}
-		deprecatedStyleMap := QemuDevice{
-			"type":         dType,
-			"storage":      c.Storage,
-			"size":         c.DiskSize,
-			"storage_type": "lvm",  // default old style
-			"cache":        "none", // default old value
-		}
-
-		c.QemuDisks[0] = deprecatedStyleMap
-	}
-
-	// For new style with multi disk device.
-	for diskID, diskConfMap := range c.QemuDisks {
+	for diskID, diskConfMap := range c.Disk {
 
 		// skip the first disk for clones (may not always be right, but a template probably has at least 1 disk)
 		if diskID == 0 && cloned {

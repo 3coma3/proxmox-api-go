@@ -170,7 +170,7 @@ func init() {
 
 		// put the map as QemuDisks[0] as if it were built by NewConfigQemuFromJson
 		config := &proxmox.ConfigQemu{
-			QemuDisks: proxmox.QemuDevices{0: inputparams},
+			Disk: proxmox.QemuDevices{0: inputparams},
 		}
 
 		// so now this method can build the PVEAPI-compatible "premap"
@@ -178,7 +178,7 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.QemuDevice{}
-		config.CreateQemuDisksParams(options.VMid, premap, false)
+		config.CreateDisksParams(options.VMid, premap, false)
 
 		// separate the name and the configuration string for each premap entry
 		// we won't need to filter device names looking for virtio,ide,etc as we

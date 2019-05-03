@@ -61,7 +61,7 @@ func init() {
 		return proxmox.NewConfigLxcFromApi(vmr, client)
 	}
 
-	testActions["configlxc_createlxcnetworksparams"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["configlxc_createnetparams"] = func(options *TOptions) (response interface{}, err error) {
 		// only the json for the network is needed on stdin
 		inputparams := proxmox.LxcDevice{}
 
@@ -79,10 +79,10 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.LxcDevice{}
-		return premap, config.CreateLxcNetParams(options.VMid, premap)
+		return premap, config.CreateNetParams(options.VMid, premap)
 	}
 
-	testActions["configlxc_createlxcmpparams"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["configlxc_creatempparams"] = func(options *TOptions) (response interface{}, err error) {
 		// only the json for the network interfaces is needed on stdin
 		inputparams := proxmox.LxcDevice{}
 
@@ -100,7 +100,7 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.LxcDevice{}
-		return premap, config.CreateLxcMpParams(options.VMid, premap, false)
+		return premap, config.CreateMpParams(options.VMid, premap, false)
 	}
 
 }
