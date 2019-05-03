@@ -429,10 +429,34 @@ func (c *Client) RollbackVm(vmr *VmRef, snapshot string) (exitStatus string, err
 	return
 }
 
-func (c *Client) CloneVm(vmr *VmRef, newid int, cloneParams map[string]interface{}) (exitStatus string, err error) {
+func (c *Client) CloneVm(vmr *VmRef, newid int, cloneParams map[string]interface{}) (exitStatus interface{}, err error) {
+	err = c.CheckVmRef(vmr)
+	if err != nil {
+		return nil, err
+	}
+
 	cloneParams["newid"] = newid
 	reqbody := ParamsToBody(cloneParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vmr.node, vmr.vmType, vmr.vmId)
+	resp, err := c.session.Post(url, nil, nil, &reqbody)
+	if err == nil {
+		taskResponse, err := ResponseJSON(resp)
+		if err != nil {
+			return nil, err
+		}
+		exitStatus, err = c.WaitForCompletion(taskResponse)
+	}
+	return
+}
+
+func (c *Client) MigrateVm(vmr *VmRef, migrateParams map[string]interface{}) (exitStatus interface{}, err error) {
+	err = c.CheckVmRef(vmr)
+	if err != nil {
+		return nil, err
+	}
+
+	reqbody := ParamsToBody(migrateParams)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/migrate", vmr.node, vmr.vmType, vmr.vmId)
 	resp, err := c.session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)

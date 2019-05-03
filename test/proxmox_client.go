@@ -127,6 +127,11 @@ func init() {
 	// moved to configqemu_createvm, as the action starts there
 	testActions["client_createvm"] = errNotImplemented
 
+	testActions["client_rollbackvm"] = func(options *TOptions) (response interface{}, err error) {
+		client, vmr := newClientAndVmr(options)
+		return client.RollbackVm(vmr, options.Args[1])
+	}
+
 	testActions["client_clonevm"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
 
@@ -144,9 +149,15 @@ func init() {
 		return client.CloneVm(sourceVmr, vmr.VmId(), cloneParams)
 	}
 
-	testActions["client_rollbackvm"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["client_migratevm"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)
-		return client.RollbackVm(vmr, options.Args[1])
+
+		migrateParams := map[string]interface{}{}
+		failOnError(json.NewDecoder(os.Stdin).Decode(&migrateParams))
+
+		migrateParams["target"] = options.Args[1]
+
+		return client.MigrateVm(vmr, migrateParams)
 	}
 
 	// moved to configqemu_updateconfig, as the action starts there
