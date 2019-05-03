@@ -33,8 +33,6 @@ func init() {
 			return nil, errors.New("ERROR: can't find template")
 		}
 
-		vmr.SetNode(options.Args[2])
-
 		config.CloneVm(sourceVmr, vmr, client)
 		return nil, err
 	}

@@ -58,6 +58,8 @@ type ConfigQemu struct {
 	// arrays are hard, support 2 interfaces for now
 	Ipconfig0 string `json:"ipconfig0"`
 	Ipconfig1 string `json:"ipconfig1"`
+
+	CloneParams map[string]interface{} `json:"clone"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
@@ -121,22 +123,10 @@ storage:xxx
 */
 func (config ConfigQemu) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (err error) {
 	vmr.SetVmType("qemu")
-	fullclone := "1"
-	if config.FullClone != nil {
-		fullclone = strconv.Itoa(*config.FullClone)
-	}
-	storage := config.Storage
-	if disk0Storage, ok := config.QemuDisks[0]["storage"].(string); ok && len(disk0Storage) > 0 {
-		storage = disk0Storage
-	}
-	params := map[string]interface{}{
-		"newid":   vmr.vmId,
-		"target":  vmr.node,
-		"name":    config.Name,
-		"storage": storage,
-		"full":    fullclone,
-	}
-	_, err = client.CloneVm(sourceVmr, params)
+
+	config.CloneParams["newid"] = vmr.vmId
+
+	_, err = client.CloneVm(sourceVmr, config.CloneParams)
 	if err != nil {
 		return
 	}

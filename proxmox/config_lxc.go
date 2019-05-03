@@ -107,7 +107,6 @@ func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (e
 	vmr.SetVmType("lxc")
 
 	config.CloneParams["newid"] = vmr.vmId
-	config.CloneParams["target"] = vmr.node
 
 	_, err = client.CloneVm(sourceVmr, config.CloneParams)
 	if err != nil {
