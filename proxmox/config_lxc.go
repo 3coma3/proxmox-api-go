@@ -110,10 +110,11 @@ func (config ConfigLxc) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (e
 		"target":   vmr.node,
 		"hostname": config.Hostname,
 	}
-	_, err = client.CloneLxcVm(sourceVmr, params)
+	_, err = client.CloneVm(sourceVmr, config.CloneParams)
 	if err != nil {
 		return
 	}
+
 	return config.UpdateConfig(vmr, client)
 }
 

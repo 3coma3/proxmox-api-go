@@ -417,20 +417,6 @@ func (c *Client) CreateVm(vmr *VmRef, vmParams map[string]interface{}) (exitStat
 	return
 }
 
-func (c *Client) CloneQemuVm(vmr *VmRef, vmParams map[string]interface{}) (exitStatus string, err error) {
-	reqbody := ParamsToBody(vmParams)
-	url := fmt.Sprintf("/nodes/%s/qemu/%d/clone", vmr.node, vmr.vmId)
-	resp, err := c.session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return "", err
-		}
-		exitStatus, err = c.WaitForCompletion(taskResponse)
-	}
-	return
-}
-
 func (c *Client) RollbackVm(vmr *VmRef, snapshot string) (exitStatus string, err error) {
 	err = c.CheckVmRef(vmr)
 	if err != nil {
@@ -443,9 +429,9 @@ func (c *Client) RollbackVm(vmr *VmRef, snapshot string) (exitStatus string, err
 	return
 }
 
-func (c *Client) CloneLxcVm(vmr *VmRef, vmParams map[string]interface{}) (exitStatus string, err error) {
+func (c *Client) CloneVm(vmr *VmRef, vmParams map[string]interface{}) (exitStatus string, err error) {
 	reqbody := ParamsToBody(vmParams)
-	url := fmt.Sprintf("/nodes/%s/qemu/%d/clone", vmr.node, vmr.vmId)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vmr.node, vmr.vmType, vmr.vmId)
 	resp, err := c.session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)

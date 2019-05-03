@@ -136,7 +136,7 @@ func (config ConfigQemu) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (
 		"storage": storage,
 		"full":    fullclone,
 	}
-	_, err = client.CloneQemuVm(sourceVmr, params)
+	_, err = client.CloneVm(sourceVmr, params)
 	if err != nil {
 		return
 	}
