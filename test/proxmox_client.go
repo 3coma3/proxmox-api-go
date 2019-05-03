@@ -3,6 +3,7 @@ package test
 import (
 	"../proxmox"
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"regexp"
@@ -126,8 +127,22 @@ func init() {
 	// moved to configqemu_createvm, as the action starts there
 	testActions["client_createvm"] = errNotImplemented
 
-	// moved to configqemu_clone, as the action starts there
-	testActions["client_clonevm"] = errNotImplemented
+	testActions["client_clonevm"] = func(options *TOptions) (response interface{}, err error) {
+		client, vmr := newClientAndVmr(options)
+
+		cloneParams := map[string]interface{}{}
+		failOnError(json.NewDecoder(os.Stdin).Decode(&cloneParams))
+
+		DebugMsg("Looking for template: " + options.VMname)
+		sourceVmr, err := client.GetVmRefByName(options.VMname)
+
+		failOnError(err)
+		if sourceVmr == nil {
+			return nil, errors.New("ERROR: can't find template")
+		}
+
+		return client.CloneVm(sourceVmr, vmr.VmId(), cloneParams)
+	}
 
 	testActions["client_rollbackvm"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)

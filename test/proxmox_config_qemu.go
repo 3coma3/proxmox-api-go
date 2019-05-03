@@ -3,7 +3,6 @@ package test
 import (
 	"../proxmox"
 	"encoding/json"
-	"errors"
 	"os"
 )
 
@@ -21,26 +20,6 @@ func init() {
 
 	// simple method
 	testActions["configqemu_hascloudinit"] = errNotImplemented
-
-	testActions["configqemu_clonevm"] = func(options *TOptions) (response interface{}, err error) {
-		client, vmr := newClientAndVmr(options)
-
-		config, err := proxmox.NewConfigQemuFromJson(os.Stdin)
-		failOnError(err)
-
-		DebugMsg("Looking for template: " + options.VMname)
-		sourceVmr, err := client.GetVmRefByName(options.VMname)
-
-		failOnError(err)
-		if sourceVmr == nil {
-			return nil, errors.New("ERROR: can't find template")
-		}
-
-		vmr.SetNode(options.Args[2])
-
-		config.CloneVm(sourceVmr, vmr, client)
-		return nil, err
-	}
 
 	testActions["configqemu_updateconfig"] = func(options *TOptions) (response interface{}, err error) {
 		client, vmr := newClientAndVmr(options)

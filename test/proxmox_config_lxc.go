@@ -3,7 +3,6 @@ package test
 import (
 	"../proxmox"
 	"encoding/json"
-	"errors"
 	"os"
 )
 
@@ -17,24 +16,6 @@ func init() {
 		vmr.SetNode(options.Args[1])
 		config.CreateVm(vmr, client)
 		return nil, nil
-	}
-
-	testActions["configlxc_clonevm"] = func(options *TOptions) (response interface{}, err error) {
-		client, vmr := newClientAndVmr(options)
-
-		config, err := proxmox.NewConfigLxcFromJson(os.Stdin, true)
-		failOnError(err)
-
-		DebugMsg("Looking for template: " + options.VMname)
-		sourceVmr, err := client.GetVmRefByName(options.VMname)
-
-		failOnError(err)
-		if sourceVmr == nil {
-			return nil, errors.New("ERROR: can't find template")
-		}
-
-		config.CloneVm(sourceVmr, vmr, client)
-		return nil, err
 	}
 
 	testActions["configlxc_updateconfig"] = func(options *TOptions) (response interface{}, err error) {

@@ -46,8 +46,6 @@ type ConfigQemu struct {
 	// arrays are hard, support 2 interfaces for now
 	Ipconfig0 string `json:"ipconfig0"`
 	Ipconfig1 string `json:"ipconfig1"`
-
-	CloneParams map[string]interface{} `json:"clone"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
@@ -93,32 +91,6 @@ func (config ConfigQemu) HasCloudInit() bool {
 		config.Sshkeys != "" ||
 		config.Ipconfig0 != "" ||
 		config.Ipconfig1 != ""
-}
-
-/*
-
-CloneVm
-Example: Request
-
-nodes/proxmox1-xx/qemu/1012/clone
-
-newid:145
-name:tf-clone1
-target:proxmox1-xx
-full:1
-storage:xxx
-
-*/
-func (config ConfigQemu) CloneVm(sourceVmr *VmRef, vmr *VmRef, client *Client) (err error) {
-	vmr.SetVmType("qemu")
-
-	config.CloneParams["newid"] = vmr.vmId
-
-	_, err = client.CloneVm(sourceVmr, config.CloneParams)
-	if err != nil {
-		return
-	}
-	return config.UpdateConfig(vmr, client)
 }
 
 func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {

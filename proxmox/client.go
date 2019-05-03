@@ -429,8 +429,9 @@ func (c *Client) RollbackVm(vmr *VmRef, snapshot string) (exitStatus string, err
 	return
 }
 
-func (c *Client) CloneVm(vmr *VmRef, vmParams map[string]interface{}) (exitStatus string, err error) {
-	reqbody := ParamsToBody(vmParams)
+func (c *Client) CloneVm(vmr *VmRef, newid int, cloneParams map[string]interface{}) (exitStatus string, err error) {
+	cloneParams["newid"] = newid
+	reqbody := ParamsToBody(cloneParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vmr.node, vmr.vmType, vmr.vmId)
 	resp, err := c.session.Post(url, nil, nil, &reqbody)
 	if err == nil {
