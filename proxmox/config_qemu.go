@@ -608,8 +608,3 @@ func (confMap QemuDevice) readDeviceConfig(confList []string) error {
 	}
 	return nil
 }
-
-func (c ConfigQemu) String() string {
-	jsConf, _ := json.Marshal(c)
-	return string(jsConf)
-}

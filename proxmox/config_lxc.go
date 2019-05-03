@@ -459,8 +459,3 @@ func (confMap LxcDevice) readDeviceConfig(confList []string) error {
 	}
 	return nil
 }
-
-func (c ConfigLxc) String() string {
-	jsConf, _ := json.Marshal(c)
-	return string(jsConf)
-}
