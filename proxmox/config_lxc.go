@@ -44,7 +44,7 @@ type ConfigLxc struct {
 }
 
 // CreateVm - Tell Proxmox API to make the VM
-func (config ConfigLxc) CreateVm(v *Vm, client *Client) (err error) {
+func (config ConfigLxc) CreateVm(v *Vm) (err error) {
 	v.SetType("lxc")
 
 	params := map[string]interface{}{
@@ -75,14 +75,14 @@ func (config ConfigLxc) CreateVm(v *Vm, client *Client) (err error) {
 	// Create networks config.
 	config.CreateNetParams(v.id, params)
 
-	exitStatus, err := v.Create(client, params)
+	exitStatus, err := v.Create(params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
 	return
 }
 
-func (config ConfigLxc) UpdateConfig(v *Vm, client *Client) (err error) {
+func (config ConfigLxc) UpdateConfig(v *Vm) (err error) {
 	params := map[string]interface{}{}
 
 	if config.Arch != "" {
@@ -130,7 +130,7 @@ func (config ConfigLxc) UpdateConfig(v *Vm, client *Client) (err error) {
 	// Create networks config.
 	config.CreateNetParams(v.id, params)
 
-	_, err = v.SetConfig(client, params)
+	_, err = v.SetConfig(params)
 	return err
 }
 
@@ -177,12 +177,12 @@ func NewConfigLxcFromJson(io io.Reader, bare bool) (config *ConfigLxc, err error
 	return
 }
 
-func NewConfigLxcFromApi(v *Vm, client *Client) (config *ConfigLxc, err error) {
+func NewConfigLxcFromApi(v *Vm) (config *ConfigLxc, err error) {
 	config = NewConfigLxc()
 
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
-		vmConfig, err = v.GetConfig(client)
+		vmConfig, err = v.GetConfig()
 		if err != nil {
 			log.Fatal(err)
 			return nil, err

@@ -26,53 +26,53 @@ func init() {
 	testActions["client_getjsonretryable"] = errNotImplemented
 
 	testActions["getnodelist"] = func(options *TOptions) (response interface{}, err error) {
-		client, _ := newClientAndVmr(options)
-		return proxmox.GetNodeList(client)
+		_, _ = newClientAndVmr(options)
+		return proxmox.GetNodeList()
 	}
 
 	testActions["getvmlist"] = func(options *TOptions) (response interface{}, err error) {
-		client, _ := newClientAndVmr(options)
-		return proxmox.GetVmList(client)
+		_, _ = newClientAndVmr(options)
+		return proxmox.GetVmList()
 	}
 
 	testActions["vm_check"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return nil, vm.Check(client)
+		_, vm := newClientAndVmr(options)
+		return nil, vm.Check()
 	}
 
 	testActions["vm_getvminfo"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.GetInfo(client)
+		_, vm := newClientAndVmr(options)
+		return vm.GetInfo()
 	}
 
 	testActions["client_getvmbyname"] = func(options *TOptions) (response interface{}, err error) {
-		client, _ := newClientAndVmr(options)
-		return proxmox.FindVm(client, options.VMname)
+		_, _ = newClientAndVmr(options)
+		return proxmox.FindVm(options.VMname)
 	}
 
 	testActions["vm_getstatus"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.GetStatus(client)
+		_, vm := newClientAndVmr(options)
+		return vm.GetStatus()
 	}
 
 	testActions["vm_getconfig"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.GetConfig(client)
+		_, vm := newClientAndVmr(options)
+		return vm.GetConfig()
 	}
 
 	testActions["vm_getspiceproxy"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.GetSpiceProxy(client)
+		_, vm := newClientAndVmr(options)
+		return vm.GetSpiceProxy()
 	}
 
 	testActions["vm_createtemplate"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return nil, vm.CreateTemplate(client)
+		_, vm := newClientAndVmr(options)
+		return nil, vm.CreateTemplate()
 	}
 
 	testActions["client_monitorcmd"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.MonitorCmd(client, options.Args[1])
+		_, vm := newClientAndVmr(options)
+		return vm.MonitorCmd(options.Args[1])
 	}
 
 	// not very testable as it depends on a response for a previously dispatched
@@ -85,96 +85,96 @@ func init() {
 	}
 
 	testActions["vm_changestatus"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.SetStatus(client, options.Args[1])
+		_, vm := newClientAndVmr(options)
+		return vm.SetStatus(options.Args[1])
 	}
 
 	testActions["vm_start"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Start(client)
+		_, vm := newClientAndVmr(options)
+		return vm.Start()
 	}
 
 	testActions["vm_stop"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Stop(client)
+		_, vm := newClientAndVmr(options)
+		return vm.Stop()
 	}
 
 	testActions["vm_shutdown"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Shutdown(client)
+		_, vm := newClientAndVmr(options)
+		return vm.Shutdown()
 	}
 
 	testActions["vm_reset"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Reset(client)
+		_, vm := newClientAndVmr(options)
+		return vm.Reset()
 	}
 
 	testActions["vm_suspend"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Suspend(client)
+		_, vm := newClientAndVmr(options)
+		return vm.Suspend()
 	}
 
 	testActions["vm_resume"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Resume(client)
+		_, vm := newClientAndVmr(options)
+		return vm.Resume()
 	}
 
 	testActions["vm_delete"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Delete(client)
+		_, vm := newClientAndVmr(options)
+		return vm.Delete()
 	}
 
 	// moved to configqemu_createvm, as the action starts there
 	testActions["vm_create"] = errNotImplemented
 
 	testActions["vm_rollback"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return vm.Rollback(client, options.Args[1])
+		_, vm := newClientAndVmr(options)
+		return vm.Rollback(options.Args[1])
 	}
 
 	testActions["vm_clone"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
+		_, vm := newClientAndVmr(options)
 
 		cloneParams := map[string]interface{}{}
 		failOnError(json.NewDecoder(os.Stdin).Decode(&cloneParams))
 
 		DebugMsg("Looking for template: " + options.VMname)
-		sourceVm, err := proxmox.FindVm(client, options.VMname)
+		sourceVm, err := proxmox.FindVm(options.VMname)
 
 		failOnError(err)
 		if sourceVm == nil {
 			return nil, errors.New("ERROR: can't find template")
 		}
 
-		return sourceVm.Clone(client, vm.Id(), cloneParams)
+		return sourceVm.Clone(vm.Id(), cloneParams)
 	}
 
 	testActions["vm_migrate"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
+		_, vm := newClientAndVmr(options)
 
 		migrateParams := map[string]interface{}{}
 		failOnError(json.NewDecoder(os.Stdin).Decode(&migrateParams))
 
 		migrateParams["target"] = options.Args[1]
 
-		return vm.Migrate(client, migrateParams)
+		return vm.Migrate(migrateParams)
 	}
 
 	// moved to configqemu_updateconfig, as the action starts there
 	testActions["vm_setconfig"] = errNotImplemented
 
 	testActions["client_getnextid"] = func(options *TOptions) (response interface{}, err error) {
-		client, _ := newClientAndVmr(options)
-		return proxmox.GetNextVmId(client, options.VMid)
+		_, _ = newClientAndVmr(options)
+		return proxmox.GetNextVmId(options.VMid)
 	}
 
 	testActions["vm_resizedisk"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
+		_, vm := newClientAndVmr(options)
 		vm.SetNode(options.Args[1])
 		vm.SetType("qemu")
 		moreSizeGB, err := strconv.Atoi(options.Args[3])
 		failOnError(err)
-		return vm.ResizeDisk(client, options.Args[2], moreSizeGB)
+		return vm.ResizeDisk(options.Args[2], moreSizeGB)
 
 	}
 
@@ -186,7 +186,7 @@ func init() {
 	// strings too early for example, so we have to stop-by and create a map
 	// to  manipulate and do checks, then translate again... so on)
 	testActions["vm_createdisk"] = func(options *TOptions) (response interface{}, err error) {
-		client, _ := newClientAndVmr(options)
+		_, _ = newClientAndVmr(options)
 
 		// only the json for the disks is needed on stdin
 		inputparams := proxmox.VmDevice{}
@@ -252,7 +252,7 @@ func init() {
 				// information and checking the volume isn't there already
 				// after creating the disk the function fails, finding out why
 				// is what is left for this test to complete
-				return nil, proxmox.CreateDisk(client, options.Args[1], storageName, fullDiskName, diskParams)
+				return nil, proxmox.CreateDisk(options.Args[1], storageName, fullDiskName, diskParams)
 			}
 		}
 

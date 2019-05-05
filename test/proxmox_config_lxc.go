@@ -8,28 +8,28 @@ import (
 
 func init() {
 	testActions["configlxc_createvm"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
+		_, vm := newClientAndVmr(options)
 
 		config, err := proxmox.NewConfigLxcFromJson(os.Stdin, false)
 		failOnError(err)
 
 		vm.SetNode(options.Args[1])
-		config.CreateVm(vm, client)
+		config.CreateVm(vm)
 		return nil, nil
 	}
 
 	testActions["configlxc_updateconfig"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
+		_, vm := newClientAndVmr(options)
 
 		config, err := proxmox.NewConfigLxcFromJson(os.Stdin, true)
 		failOnError(err)
 
-		vminfo, err := vm.GetInfo(client)
+		vminfo, err := vm.GetInfo()
 		failOnError(err)
 
 		vm.SetNode(vminfo["node"].(string))
 		vm.SetType(vminfo["type"].(string))
-		config.UpdateConfig(vm, client)
+		config.UpdateConfig(vm)
 		return nil, err
 	}
 
@@ -38,8 +38,8 @@ func init() {
 	}
 
 	testActions["configlxc_newconfiglxcfromapi"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
-		return proxmox.NewConfigLxcFromApi(vm, client)
+		_, vm := newClientAndVmr(options)
+		return proxmox.NewConfigLxcFromApi(vm)
 	}
 
 	testActions["configlxc_createnetparams"] = func(options *TOptions) (response interface{}, err error) {

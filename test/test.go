@@ -112,9 +112,11 @@ func newClientAndVmr(options *TOptions) (client *proxmox.Client, v *proxmox.Vm) 
 
 	failOnError(client.Login(options.APIuser, options.APIpass))
 
+	client.Set()
+
 	// Auto VMId and Vm struct initialization
 	if options.VMid <= 0 {
-		options.VMid, err = proxmox.GetNextVmId(client, 0)
+		options.VMid, err = proxmox.GetNextVmId(0)
 		failOnError(err)
 	}
 

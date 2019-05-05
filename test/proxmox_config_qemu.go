@@ -8,13 +8,13 @@ import (
 
 func init() {
 	testActions["configqemu_createvm"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
+		_, vm := newClientAndVmr(options)
 
 		config, err := proxmox.NewConfigQemuFromJson(os.Stdin)
 		failOnError(err)
 
 		vm.SetNode(options.Args[1])
-		config.CreateVm(vm, client)
+		config.CreateVm(vm)
 		return nil, nil
 	}
 
@@ -22,17 +22,17 @@ func init() {
 	testActions["configqemu_hascloudinit"] = errNotImplemented
 
 	testActions["configqemu_updateconfig"] = func(options *TOptions) (response interface{}, err error) {
-		client, vm := newClientAndVmr(options)
+		_, vm := newClientAndVmr(options)
 
 		config, err := proxmox.NewConfigQemuFromJson(os.Stdin)
 		failOnError(err)
 
-		vminfo, err := vm.GetInfo(client)
+		vminfo, err := vm.GetInfo()
 		failOnError(err)
 
 		vm.SetNode(vminfo["node"].(string))
 		vm.SetType(vminfo["type"].(string))
-		config.UpdateConfig(vm, client)
+		config.UpdateConfig(vm)
 		return nil, err
 	}
 
@@ -41,37 +41,37 @@ func init() {
 	}
 
 	testActions["configqemu_newconfigqemufromapi"] = func(options *TOptions) (response interface{}, err error) {
-		client, v := newClientAndVmr(options)
-		return proxmox.NewConfigQemuFromApi(v, client)
+		_, v := newClientAndVmr(options)
+		return proxmox.NewConfigQemuFromApi(v)
 	}
 
 	testActions["configqemu_waitforshutdown"] = func(options *TOptions) (response interface{}, err error) {
-		client, v := newClientAndVmr(options)
+		_, v := newClientAndVmr(options)
 
 		// remember to use this to shutdown asynchronously
 		_, err = testActions["client_monitorcmd"](options)
 		failOnError(err)
-		return nil, v.WaitForShutdown(client)
+		return nil, v.WaitForShutdown()
 	}
 
-	testActions["configqemu_sshforwardusernet"] = func(options *TOptions) (response interface{}, err error) {
-		client, v := newClientAndVmr(options)
-		return proxmox.SshForwardUsernet(v, client)
+	testActions["vm_sshforwardusernet"] = func(options *TOptions) (response interface{}, err error) {
+		_, v := newClientAndVmr(options)
+		return v.SshForwardUsernet()
 	}
 
-	testActions["configqemu_removesshforwardusernet"] = func(options *TOptions) (response interface{}, err error) {
-		client, v := newClientAndVmr(options)
-		return nil, proxmox.RemoveSshForwardUsernet(v, client)
+	testActions["vm_removesshforwardusernet"] = func(options *TOptions) (response interface{}, err error) {
+		_, v := newClientAndVmr(options)
+		return nil, v.RemoveSshForwardUsernet()
 	}
 
 	testActions["configqemu_maxvmid"] = func(options *TOptions) (response interface{}, err error) {
-		client, _ := newClientAndVmr(options)
-		return proxmox.MaxVmId(client)
+		_, _ = newClientAndVmr(options)
+		return proxmox.GetMaxVmId()
 	}
 
 	testActions["configqemu_sendkeysstring"] = func(options *TOptions) (response interface{}, err error) {
-		client, v := newClientAndVmr(options)
-		return nil, proxmox.SendKeysString(v, client, options.Args[1])
+		_, v := newClientAndVmr(options)
+		return nil, v.SendKeysString(options.Args[1])
 	}
 
 	testActions["configqemu_createnetparams"] = func(options *TOptions) (response interface{}, err error) {
