@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -33,7 +34,21 @@ func FindVm(vmName string) (vm *Vm, err error) {
 	return nil, errors.New(fmt.Sprintf("Vm '%s' not found", vmName))
 }
 
-func GetNextVmId(client *Client, currentId int) (nextId int, err error) {
+func GetMaxVmId() (max int, err error) {
+	resp, err := GetVmList()
+	vms := resp["data"].([]interface{})
+	max = 0
+	for vmii := range vms {
+		vm := vms[vmii].(map[string]interface{})
+		vmid := int(vm["vmid"].(float64))
+		if vmid > max {
+			max = vmid
+		}
+	}
+	return
+}
+
+func GetNextVmId(currentId int) (nextId int, err error) {
 	var data map[string]interface{}
 	var url string
 	if currentId >= 100 {
@@ -523,6 +538,114 @@ type AgentNetworkInterface struct {
 	IPAddresses []net.IP
 	Name        string
 	Statistics  map[string]int64
+}
+
+func (v *Vm) SendKeysString(keys string) (err error) {
+	vmState, err := v.GetStatus()
+	if err != nil {
+		return err
+	}
+	if vmState["status"] == "stopped" {
+		return errors.New("VM must be running first")
+	}
+	for _, r := range keys {
+		c := string(r)
+		lower := strings.ToLower(c)
+		if c != lower {
+			c = "shift-" + lower
+		} else {
+			switch c {
+			case "!":
+				c = "shift-1"
+			case "@":
+				c = "shift-2"
+			case "#":
+				c = "shift-3"
+			case "$":
+				c = "shift-4"
+			case "%%":
+				c = "shift-5"
+			case "^":
+				c = "shift-6"
+			case "&":
+				c = "shift-7"
+			case "*":
+				c = "shift-8"
+			case "(":
+				c = "shift-9"
+			case ")":
+				c = "shift-0"
+			case "_":
+				c = "shift-minus"
+			case "+":
+				c = "shift-equal"
+			case " ":
+				c = "spc"
+			case "/":
+				c = "slash"
+			case "\\":
+				c = "backslash"
+			case ",":
+				c = "comma"
+			case "-":
+				c = "minus"
+			case "=":
+				c = "equal"
+			case ".":
+				c = "dot"
+			case "?":
+				c = "shift-slash"
+			}
+		}
+		_, err = v.MonitorCmd("sendkey " + c)
+		if err != nil {
+			return err
+		}
+		time.Sleep(100)
+	}
+	return nil
+}
+
+// This is because proxmox create/config API won't let us make usernet devices
+func (v *Vm) SshForwardUsernet() (sshPort string, err error) {
+	vmState, err := v.GetStatus()
+	if err != nil {
+		return "", err
+	}
+	if vmState["status"] == "stopped" {
+		return "", errors.New("VM must be running first")
+	}
+	sshPort = strconv.Itoa(v.Id() + 22000)
+	_, err = v.MonitorCmd("netdev_add user,id=net1,hostfwd=tcp::" + sshPort + "-:22")
+	if err != nil {
+		return "", err
+	}
+	_, err = v.MonitorCmd("device_add virtio-net-pci,id=net1,netdev=net1,addr=0x13")
+	if err != nil {
+		return "", err
+	}
+	return
+}
+
+// device_del net1
+// netdev_del net1
+func (v *Vm) RemoveSshForwardUsernet() (err error) {
+	vmState, err := v.GetStatus()
+	if err != nil {
+		return err
+	}
+	if vmState["status"] == "stopped" {
+		return errors.New("VM must be running first")
+	}
+	_, err = v.MonitorCmd("device_del net1")
+	if err != nil {
+		return err
+	}
+	_, err = v.MonitorCmd("netdev_del net1")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *AgentNetworkInterface) UnmarshalJSON(b []byte) error {
