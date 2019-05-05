@@ -31,6 +31,15 @@ const exitStatusSuccess = "OK"
 
 var rxTaskNode = regexp.MustCompile("UPID:(.*?):")
 
+func NewClient(apiUrl string, hclient *http.Client, tls *tls.Config) (client *Client, err error) {
+	var sess *Session
+	sess, err = NewSession(apiUrl, hclient, tls)
+	if err == nil {
+		client = &Client{session: sess, ApiUrl: apiUrl}
+	}
+	return client, err
+}
+
 var setClient *Client
 
 func (c *Client) Set() {
@@ -39,15 +48,6 @@ func (c *Client) Set() {
 
 func GetClient() *Client {
 	return setClient
-}
-
-func NewClient(apiUrl string, hclient *http.Client, tls *tls.Config) (client *Client, err error) {
-	var sess *Session
-	sess, err = NewSession(apiUrl, hclient, tls)
-	if err == nil {
-		client = &Client{session: sess, ApiUrl: apiUrl}
-	}
-	return client, err
 }
 
 func (c *Client) Login(username string, password string) (err error) {
