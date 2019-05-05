@@ -44,11 +44,11 @@ type ConfigLxc struct {
 }
 
 // CreateVm - Tell Proxmox API to make the VM
-func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
-	vmr.SetVmType("lxc")
+func (config ConfigLxc) CreateVm(v *Vm, client *Client) (err error) {
+	v.SetType("lxc")
 
 	params := map[string]interface{}{
-		"vmid":            vmr.vmId,
+		"vmid":            v.id,
 		"arch":            config.Arch,
 		"cmode":           config.Cmode,
 		"console":         config.Console,
@@ -70,19 +70,19 @@ func (config ConfigLxc) CreateVm(vmr *VmRef, client *Client) (err error) {
 	}
 
 	// Create mountpoints config.
-	config.CreateMpParams(vmr.vmId, params, false)
+	config.CreateMpParams(v.id, params, false)
 
 	// Create networks config.
-	config.CreateNetParams(vmr.vmId, params)
+	config.CreateNetParams(v.id, params)
 
-	exitStatus, err := client.CreateVm(vmr, params)
+	exitStatus, err := v.Create(client, params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
 	return
 }
 
-func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
+func (config ConfigLxc) UpdateConfig(v *Vm, client *Client) (err error) {
 	params := map[string]interface{}{}
 
 	if config.Arch != "" {
@@ -125,12 +125,12 @@ func (config ConfigLxc) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	params["tty"] = config.Tty
 
 	// Create mountpoints config.
-	config.CreateMpParams(vmr.vmId, params, true)
+	config.CreateMpParams(v.id, params, true)
 
 	// Create networks config.
-	config.CreateNetParams(vmr.vmId, params)
+	config.CreateNetParams(v.id, params)
 
-	_, err = client.SetVmConfig(vmr, params)
+	_, err = v.SetConfig(client, params)
 	return err
 }
 
@@ -177,12 +177,12 @@ func NewConfigLxcFromJson(io io.Reader, bare bool) (config *ConfigLxc, err error
 	return
 }
 
-func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err error) {
+func NewConfigLxcFromApi(v *Vm, client *Client) (config *ConfigLxc, err error) {
 	config = NewConfigLxc()
 
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
-		vmConfig, err = client.GetVmConfig(vmr)
+		vmConfig, err = v.GetConfig(client)
 		if err != nil {
 			log.Fatal(err)
 			return nil, err

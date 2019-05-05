@@ -43,14 +43,14 @@ type ConfigQemu struct {
 }
 
 // CreateVm - Tell Proxmox API to make the VM
-func (config ConfigQemu) CreateVm(vmr *VmRef, client *Client) (err error) {
+func (config ConfigQemu) CreateVm(v *Vm, client *Client) (err error) {
 	if config.HasCloudInit() {
 		return errors.New("Cloud-init parameters only supported on clones or updates")
 	}
-	vmr.SetVmType("qemu")
+	v.SetType("qemu")
 
 	params := map[string]interface{}{
-		"vmid":        vmr.vmId,
+		"vmid":        v.id,
 		"name":        config.Name,
 		"onboot":      config.Onboot,
 		"agent":       config.Agent,
@@ -64,12 +64,12 @@ func (config ConfigQemu) CreateVm(vmr *VmRef, client *Client) (err error) {
 	}
 
 	// Create disks config.
-	config.CreateDisksParams(vmr.vmId, params, false)
+	config.CreateDisksParams(v.id, params, false)
 
 	// Create networks config.
-	config.CreateNetParams(vmr.vmId, params)
+	config.CreateNetParams(v.id, params)
 
-	exitStatus, err := client.CreateVm(vmr, params)
+	exitStatus, err := v.Create(client, params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
@@ -87,7 +87,7 @@ func (config ConfigQemu) HasCloudInit() bool {
 		config.Ipconfig1 != ""
 }
 
-func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {
+func (config ConfigQemu) UpdateConfig(v *Vm, client *Client) (err error) {
 	configParams := map[string]interface{}{
 		"name":        config.Name,
 		"description": config.Description,
@@ -99,10 +99,10 @@ func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	}
 
 	// Create disks config.
-	config.CreateDisksParams(vmr.vmId, configParams, true)
+	config.CreateDisksParams(v.id, configParams, true)
 
 	// Create networks config.
-	config.CreateNetParams(vmr.vmId, configParams)
+	config.CreateNetParams(v.id, configParams)
 
 	// cloud-init options
 	if config.CIuser != "" {
@@ -130,7 +130,7 @@ func (config ConfigQemu) UpdateConfig(vmr *VmRef, client *Client) (err error) {
 	if config.Ipconfig1 != "" {
 		configParams["ipconfig1"] = config.Ipconfig1
 	}
-	_, err = client.SetVmConfig(vmr, configParams)
+	_, err = v.SetConfig(client, configParams)
 	return err
 }
 
@@ -154,10 +154,10 @@ var (
 	rxNicName  = regexp.MustCompile(`net\d+`)
 )
 
-func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err error) {
+func NewConfigQemuFromApi(v *Vm, client *Client) (config *ConfigQemu, err error) {
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
-		vmConfig, err = client.GetVmConfig(vmr)
+		vmConfig, err = v.GetConfig(client)
 		if err != nil {
 			log.Fatal(err)
 			return nil, err
@@ -326,9 +326,9 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 }
 
 // Useful waiting for ISO install to complete
-func WaitForShutdown(vmr *VmRef, client *Client) (err error) {
+func (v *Vm) WaitForShutdown(client *Client) (err error) {
 	for ii := 0; ii < 100; ii++ {
-		vmState, err := client.GetVmState(vmr)
+		vmState, err := v.GetStatus(client)
 		if err != nil {
 			log.Print("Wait error:")
 			log.Println(err)
@@ -341,20 +341,20 @@ func WaitForShutdown(vmr *VmRef, client *Client) (err error) {
 }
 
 // This is because proxmox create/config API won't let us make usernet devices
-func SshForwardUsernet(vmr *VmRef, client *Client) (sshPort string, err error) {
-	vmState, err := client.GetVmState(vmr)
+func SshForwardUsernet(v *Vm, client *Client) (sshPort string, err error) {
+	vmState, err := v.GetStatus(client)
 	if err != nil {
 		return "", err
 	}
 	if vmState["status"] == "stopped" {
 		return "", errors.New("VM must be running first")
 	}
-	sshPort = strconv.Itoa(vmr.VmId() + 22000)
-	_, err = client.MonitorCmd(vmr, "netdev_add user,id=net1,hostfwd=tcp::"+sshPort+"-:22")
+	sshPort = strconv.Itoa(v.Id() + 22000)
+	_, err = v.MonitorCmd(client, "netdev_add user,id=net1,hostfwd=tcp::"+sshPort+"-:22")
 	if err != nil {
 		return "", err
 	}
-	_, err = client.MonitorCmd(vmr, "device_add virtio-net-pci,id=net1,netdev=net1,addr=0x13")
+	_, err = v.MonitorCmd(client, "device_add virtio-net-pci,id=net1,netdev=net1,addr=0x13")
 	if err != nil {
 		return "", err
 	}
@@ -363,19 +363,19 @@ func SshForwardUsernet(vmr *VmRef, client *Client) (sshPort string, err error) {
 
 // device_del net1
 // netdev_del net1
-func RemoveSshForwardUsernet(vmr *VmRef, client *Client) (err error) {
-	vmState, err := client.GetVmState(vmr)
+func RemoveSshForwardUsernet(v *Vm, client *Client) (err error) {
+	vmState, err := v.GetStatus(client)
 	if err != nil {
 		return err
 	}
 	if vmState["status"] == "stopped" {
 		return errors.New("VM must be running first")
 	}
-	_, err = client.MonitorCmd(vmr, "device_del net1")
+	_, err = v.MonitorCmd(client, "device_del net1")
 	if err != nil {
 		return err
 	}
-	_, err = client.MonitorCmd(vmr, "netdev_del net1")
+	_, err = v.MonitorCmd(client, "netdev_del net1")
 	if err != nil {
 		return err
 	}
@@ -383,7 +383,7 @@ func RemoveSshForwardUsernet(vmr *VmRef, client *Client) (err error) {
 }
 
 func MaxVmId(client *Client) (max int, err error) {
-	resp, err := client.GetVmList()
+	resp, err := GetVmList(client)
 	vms := resp["data"].([]interface{})
 	max = 0
 	for vmii := range vms {
@@ -396,8 +396,8 @@ func MaxVmId(client *Client) (max int, err error) {
 	return
 }
 
-func SendKeysString(vmr *VmRef, client *Client, keys string) (err error) {
-	vmState, err := client.GetVmState(vmr)
+func SendKeysString(v *Vm, client *Client, keys string) (err error) {
+	vmState, err := v.GetStatus(client)
 	if err != nil {
 		return err
 	}
@@ -453,7 +453,7 @@ func SendKeysString(vmr *VmRef, client *Client, keys string) (err error) {
 				c = "shift-slash"
 			}
 		}
-		_, err = client.MonitorCmd(vmr, "sendkey "+c)
+		_, err = v.MonitorCmd(client, "sendkey "+c)
 		if err != nil {
 			return err
 		}

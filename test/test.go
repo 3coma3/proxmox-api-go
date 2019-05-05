@@ -97,7 +97,7 @@ func askUserPass(options *TOptions) {
 }
 
 // this is done repeatedly on most Client and ConfigQemu tests, abstracting here
-func newClientAndVmr(options *TOptions) (client *proxmox.Client, vmr *proxmox.VmRef) {
+func newClientAndVmr(options *TOptions) (client *proxmox.Client, v *proxmox.Vm) {
 	DebugMsg("New Client with Login")
 
 	tlsconf := &tls.Config{InsecureSkipVerify: true}
@@ -112,16 +112,16 @@ func newClientAndVmr(options *TOptions) (client *proxmox.Client, vmr *proxmox.Vm
 
 	failOnError(client.Login(options.APIuser, options.APIpass))
 
-	// Auto VMId and VmRef struct initialization
+	// Auto VMId and Vm struct initialization
 	if options.VMid <= 0 {
-		options.VMid, err = client.GetNextID(0)
+		options.VMid, err = proxmox.GetNextVmId(client, 0)
 		failOnError(err)
 	}
 
-	vmr = proxmox.NewVmRef(options.VMid)
+	v = proxmox.NewVm(options.VMid)
 
 	DebugMsg("vmid is " + strconv.Itoa(options.VMid))
-	DebugMsg("vmr is " + fmt.Sprintf("%+v", vmr))
+	DebugMsg("v is " + fmt.Sprintf("%+v", v))
 
 	return
 }

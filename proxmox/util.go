@@ -59,7 +59,7 @@ func ParseConf(
 	confSeparator string,
 	subConfSeparator string,
 ) VmDevice {
-	var confMap = QemuDevice{}
+	var confMap = VmDevice{}
 	confList := strings.Split(kvString, confSeparator)
 	for _, item := range confList {
 		key, value := ParseSubConf(item, subConfSeparator)
