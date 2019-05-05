@@ -44,11 +44,11 @@ type ConfigLxc struct {
 }
 
 // CreateVm - Tell Proxmox API to make the VM
-func (config ConfigLxc) CreateVm(v *Vm) (err error) {
-	v.SetType("lxc")
+func (config ConfigLxc) CreateVm(vm *Vm) (err error) {
+	vm.SetType("lxc")
 
 	params := map[string]interface{}{
-		"vmid":            v.id,
+		"vmid":            vm.id,
 		"arch":            config.Arch,
 		"cmode":           config.Cmode,
 		"console":         config.Console,
@@ -70,19 +70,19 @@ func (config ConfigLxc) CreateVm(v *Vm) (err error) {
 	}
 
 	// Create mountpoints config.
-	config.CreateMpParams(v.id, params, false)
+	config.CreateMpParams(vm.id, params, false)
 
 	// Create networks config.
-	config.CreateNetParams(v.id, params)
+	config.CreateNetParams(vm.id, params)
 
-	exitStatus, err := v.Create(params)
+	exitStatus, err := vm.Create(params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
 	return
 }
 
-func (config ConfigLxc) UpdateConfig(v *Vm) (err error) {
+func (config ConfigLxc) UpdateConfig(vm *Vm) (err error) {
 	params := map[string]interface{}{}
 
 	if config.Arch != "" {
@@ -125,12 +125,12 @@ func (config ConfigLxc) UpdateConfig(v *Vm) (err error) {
 	params["tty"] = config.Tty
 
 	// Create mountpoints config.
-	config.CreateMpParams(v.id, params, true)
+	config.CreateMpParams(vm.id, params, true)
 
 	// Create networks config.
-	config.CreateNetParams(v.id, params)
+	config.CreateNetParams(vm.id, params)
 
-	_, err = v.SetConfig(params)
+	_, err = vm.SetConfig(params)
 	return err
 }
 
@@ -177,12 +177,12 @@ func NewConfigLxcFromJson(io io.Reader, bare bool) (config *ConfigLxc, err error
 	return
 }
 
-func NewConfigLxcFromApi(v *Vm) (config *ConfigLxc, err error) {
+func NewConfigLxcFromApi(vm *Vm) (config *ConfigLxc, err error) {
 	config = NewConfigLxc()
 
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
-		vmConfig, err = v.GetConfig()
+		vmConfig, err = vm.GetConfig()
 		if err != nil {
 			log.Fatal(err)
 			return nil, err

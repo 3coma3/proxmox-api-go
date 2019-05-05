@@ -77,45 +77,45 @@ type Vm struct {
 	node   string
 }
 
-func (v *Vm) SetNode(n string) {
-	v.node = n
+func (vm *Vm) SetNode(n string) {
+	vm.node = n
 	return
 }
 
-func (v *Vm) SetType(t string) {
-	v.vmtype = t
+func (vm *Vm) SetType(t string) {
+	vm.vmtype = t
 	return
 }
 
-func (v *Vm) Id() int {
-	return v.id
+func (vm *Vm) Id() int {
+	return vm.id
 }
 
-func (v *Vm) Node() string {
-	return v.node
+func (vm *Vm) Node() string {
+	return vm.node
 }
 
 func NewVm(id int) *Vm {
 	return &Vm{id: id}
 }
 
-func (v *Vm) Check() (err error) {
-	if v.node == "" || v.vmtype == "" {
-		_, err = v.GetInfo()
+func (vm *Vm) Check() (err error) {
+	if vm.node == "" || vm.vmtype == "" {
+		_, err = vm.GetInfo()
 	}
 	return
 }
 
-func (v *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err error) {
+func (vm *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err error) {
 	// Create VM disks first to ensure disks names.
-	createdDisks, createdDisksErr := createDisks(v.node, vmParams)
+	createdDisks, createdDisksErr := createDisks(vm.node, vmParams)
 	if createdDisksErr != nil {
 		return "", createdDisksErr
 	}
 
 	// Then create the VM itself.
 	reqbody := ParamsToBody(vmParams)
-	url := fmt.Sprintf("/nodes/%s/%s", v.node, v.vmtype)
+	url := fmt.Sprintf("/nodes/%s/%s", vm.node, vm.vmtype)
 	var resp *http.Response
 	resp, err = GetClient().session.Post(url, nil, nil, &reqbody)
 	defer resp.Body.Close()
@@ -134,7 +134,7 @@ func (v *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err err
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	// Delete VM disks if the VM didn't create.
 	if exitStatus != "OK" {
-		deleteDisksErr := v.DeleteDisks(createdDisks)
+		deleteDisksErr := vm.DeleteDisks(createdDisks)
 		if deleteDisksErr != nil {
 			return "", deleteDisksErr
 		}
@@ -143,15 +143,15 @@ func (v *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err err
 	return
 }
 
-func (v *Vm) Clone(newid int, cloneParams map[string]interface{}) (exitStatus interface{}, err error) {
-	err = v.Check()
+func (vm *Vm) Clone(newid int, cloneParams map[string]interface{}) (exitStatus interface{}, err error) {
+	err = vm.Check()
 	if err != nil {
 		return nil, err
 	}
 
 	cloneParams["newid"] = newid
 	reqbody := ParamsToBody(cloneParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vm.node, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -163,14 +163,14 @@ func (v *Vm) Clone(newid int, cloneParams map[string]interface{}) (exitStatus in
 	return
 }
 
-func (v *Vm) CreateTemplate() error {
-	err := v.Check()
+func (vm *Vm) CreateTemplate() error {
+	err := vm.Check()
 	if err != nil {
 		return err
 	}
 
 	reqbody := ParamsToBody(map[string]interface{}{"experimental": true})
-	url := fmt.Sprintf("/nodes/%s/%s/%d/template", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/template", vm.node, vm.vmtype, vm.id)
 	_, err = GetClient().session.Post(url, nil, nil, &reqbody)
 	if err != nil {
 		return err
@@ -179,40 +179,39 @@ func (v *Vm) CreateTemplate() error {
 	return nil
 }
 
-func (v *Vm) Delete() (exitStatus string, err error) {
-	err = v.Check()
+func (vm *Vm) Delete() (exitStatus string, err error) {
+	err = vm.Check()
 	if err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("/nodes/%s/%s/%d", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d", vm.node, vm.vmtype, vm.id)
 	var taskResponse map[string]interface{}
 	_, err = GetClient().session.RequestJSON("DELETE", url, nil, nil, nil, &taskResponse)
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	return
 }
 
-func (v *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
+func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
 	resp, err := GetVmList()
 	vms := resp["data"].([]interface{})
-	for vmii := range vms {
-		vm := vms[vmii].(map[string]interface{})
-		if int(vm["vmid"].(float64)) == v.id {
-			vmInfo = vm
-			v.node = vmInfo["node"].(string)
-			v.vmtype = vmInfo["type"].(string)
+	for i := range vms {
+		vminfo := vms[i].(map[string]interface{})
+		if int(vminfo["vmid"].(float64)) == vm.id {
+			vm.node = vminfo["node"].(string)
+			vm.vmtype = vminfo["type"].(string)
 			return
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("Vm '%d' not found", v.id))
+	return nil, errors.New(fmt.Sprintf("Vm '%d' not found", vm.id))
 }
 
-func (v *Vm) GetConfig() (config map[string]interface{}, err error) {
-	err = v.Check()
+func (vm *Vm) GetConfig() (config map[string]interface{}, err error) {
+	err = vm.Check()
 	if err != nil {
 		return nil, err
 	}
 	var data map[string]interface{}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/config", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node, vm.vmtype, vm.id)
 	err = GetClient().GetJsonRetryable(url, &data, 3)
 	if err != nil {
 		return nil, err
@@ -224,15 +223,15 @@ func (v *Vm) GetConfig() (config map[string]interface{}, err error) {
 	return
 }
 
-func (v *Vm) SetConfig(vmParams map[string]interface{}) (exitStatus interface{}, err error) {
+func (vm *Vm) SetConfig(vmParams map[string]interface{}) (exitStatus interface{}, err error) {
 	reqbody := ParamsToBody(vmParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/config", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node, vm.vmtype, vm.id)
 
 	var resp *http.Response
 
 	// Use the POST async API to update qemu VMs, PUT (only method available)
 	// for CTs
-	if v.vmtype == "qemu" {
+	if vm.vmtype == "qemu" {
 		resp, err = GetClient().session.Post(url, nil, nil, &reqbody)
 	} else {
 		resp, err = GetClient().session.Put(url, nil, nil, &reqbody)
@@ -248,13 +247,13 @@ func (v *Vm) SetConfig(vmParams map[string]interface{}) (exitStatus interface{},
 	return
 }
 
-func (v *Vm) GetStatus() (vmState map[string]interface{}, err error) {
-	err = v.Check()
+func (vm *Vm) GetStatus() (vmState map[string]interface{}, err error) {
+	err = vm.Check()
 	if err != nil {
 		return nil, err
 	}
 	var data map[string]interface{}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/status/current", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/status/current", vm.node, vm.vmtype, vm.id)
 	err = GetClient().GetJsonRetryable(url, &data, 3)
 	if err != nil {
 		return nil, err
@@ -266,13 +265,13 @@ func (v *Vm) GetStatus() (vmState map[string]interface{}, err error) {
 	return
 }
 
-func (v *Vm) SetStatus(setStatus string) (exitStatus string, err error) {
-	err = v.Check()
+func (vm *Vm) SetStatus(setStatus string) (exitStatus string, err error) {
+	err = vm.Check()
 	if err != nil {
 		return "", err
 	}
 
-	url := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", v.node, v.vmtype, v.id, setStatus)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", vm.node, vm.vmtype, vm.id, setStatus)
 	var taskResponse map[string]interface{}
 	for i := 0; i < 3; i++ {
 		_, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse)
@@ -286,22 +285,22 @@ func (v *Vm) SetStatus(setStatus string) (exitStatus string, err error) {
 	return
 }
 
-func (v *Vm) Start() (exitStatus string, err error) {
-	return v.SetStatus("start")
+func (vm *Vm) Start() (exitStatus string, err error) {
+	return vm.SetStatus("start")
 }
 
-func (v *Vm) Stop() (exitStatus string, err error) {
-	return v.SetStatus("stop")
+func (vm *Vm) Stop() (exitStatus string, err error) {
+	return vm.SetStatus("stop")
 }
 
-func (v *Vm) Shutdown() (exitStatus string, err error) {
-	return v.SetStatus("shutdown")
+func (vm *Vm) Shutdown() (exitStatus string, err error) {
+	return vm.SetStatus("shutdown")
 }
 
 // Useful waiting for ISO install to complete
-func (v *Vm) WaitForShutdown() (err error) {
+func (vm *Vm) WaitForShutdown() (err error) {
 	for ii := 0; ii < 100; ii++ {
-		vmState, err := v.GetStatus()
+		vmState, err := vm.GetStatus()
 		if err != nil {
 			log.Print("Wait error:")
 			log.Println(err)
@@ -313,26 +312,26 @@ func (v *Vm) WaitForShutdown() (err error) {
 	return errors.New("Not shutdown within wait time")
 }
 
-func (v *Vm) Reset() (exitStatus string, err error) {
-	return v.SetStatus("reset")
+func (vm *Vm) Reset() (exitStatus string, err error) {
+	return vm.SetStatus("reset")
 }
 
-func (v *Vm) Suspend() (exitStatus string, err error) {
-	return v.SetStatus("suspend")
+func (vm *Vm) Suspend() (exitStatus string, err error) {
+	return vm.SetStatus("suspend")
 }
 
-func (v *Vm) Resume() (exitStatus string, err error) {
-	return v.SetStatus("resume")
+func (vm *Vm) Resume() (exitStatus string, err error) {
+	return vm.SetStatus("resume")
 }
 
-func (v *Vm) Migrate(migrateParams map[string]interface{}) (exitStatus interface{}, err error) {
-	err = v.Check()
+func (vm *Vm) Migrate(migrateParams map[string]interface{}) (exitStatus interface{}, err error) {
+	err = vm.Check()
 	if err != nil {
 		return nil, err
 	}
 
 	reqbody := ParamsToBody(migrateParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/migrate", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/migrate", vm.node, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -344,12 +343,12 @@ func (v *Vm) Migrate(migrateParams map[string]interface{}) (exitStatus interface
 	return
 }
 
-func (v *Vm) Rollback(snapshot string) (exitStatus string, err error) {
-	err = v.Check()
+func (vm *Vm) Rollback(snapshot string) (exitStatus string, err error) {
+	err = vm.Check()
 	if err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", v.node, v.vmtype, v.id, snapshot)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", vm.node, vm.vmtype, vm.id, snapshot)
 	var taskResponse map[string]interface{}
 	_, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse)
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
@@ -447,7 +446,7 @@ func createDisks(
 	return createdDisks, nil
 }
 
-func (v *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, err error) {
+func (vm *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, err error) {
 	// PUT
 	//disk:virtio0
 	//size:+2G
@@ -456,7 +455,7 @@ func (v *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, er
 	}
 	size := fmt.Sprintf("+%dG", moreSizeGB)
 	reqbody := ParamsToBody(map[string]interface{}{"disk": disk, "size": size})
-	url := fmt.Sprintf("/nodes/%s/%s/%d/resize", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/resize", vm.node, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Put(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -471,10 +470,10 @@ func (v *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, er
 // DeleteDisks - Delete VM disks from host node.
 // By default the VM disks are deteled when the VM is deleted,
 // so mainly this is used to delete the disks in case VM creation didn't complete.
-func (v *Vm) DeleteDisks(disks []string) error {
+func (vm *Vm) DeleteDisks(disks []string) error {
 	for _, fullDiskName := range disks {
 		storageName, volumeName := getStorageAndVolumeName(fullDiskName, ":")
-		url := fmt.Sprintf("/nodes/%s/storage/%s/content/%s", v.node, storageName, volumeName)
+		url := fmt.Sprintf("/nodes/%s/storage/%s/content/%s", vm.node, storageName, volumeName)
 		_, err := GetClient().session.Post(url, nil, nil, nil)
 		if err != nil {
 			return err
@@ -503,13 +502,13 @@ func getStorageAndVolumeName(
 	return storageName, volumeName
 }
 
-func (v *Vm) GetSpiceProxy() (vmSpiceProxy map[string]interface{}, err error) {
-	err = v.Check()
+func (vm *Vm) GetSpiceProxy() (vmSpiceProxy map[string]interface{}, err error) {
+	err = vm.Check()
 	if err != nil {
 		return nil, err
 	}
 	var data map[string]interface{}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/spiceproxy", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/spiceproxy", vm.node, vm.vmtype, vm.id)
 	_, err = GetClient().session.PostJSON(url, nil, nil, nil, &data)
 	if err != nil {
 		return nil, err
@@ -521,13 +520,13 @@ func (v *Vm) GetSpiceProxy() (vmSpiceProxy map[string]interface{}, err error) {
 	return
 }
 
-func (v *Vm) MonitorCmd(command string) (monitorRes map[string]interface{}, err error) {
-	err = v.Check()
+func (vm *Vm) MonitorCmd(command string) (monitorRes map[string]interface{}, err error) {
+	err = vm.Check()
 	if err != nil {
 		return nil, err
 	}
 	reqbody := ParamsToBody(map[string]interface{}{"command": command})
-	url := fmt.Sprintf("/nodes/%s/%s/%d/monitor", v.node, v.vmtype, v.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/monitor", vm.node, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	monitorRes, err = ResponseJSON(resp)
 	return
@@ -540,8 +539,8 @@ type AgentNetworkInterface struct {
 	Statistics  map[string]int64
 }
 
-func (v *Vm) SendKeysString(keys string) (err error) {
-	vmState, err := v.GetStatus()
+func (vm *Vm) SendKeysString(keys string) (err error) {
+	vmState, err := vm.GetStatus()
 	if err != nil {
 		return err
 	}
@@ -597,7 +596,7 @@ func (v *Vm) SendKeysString(keys string) (err error) {
 				c = "shift-slash"
 			}
 		}
-		_, err = v.MonitorCmd("sendkey " + c)
+		_, err = vm.MonitorCmd("sendkey " + c)
 		if err != nil {
 			return err
 		}
@@ -607,20 +606,20 @@ func (v *Vm) SendKeysString(keys string) (err error) {
 }
 
 // This is because proxmox create/config API won't let us make usernet devices
-func (v *Vm) SshForwardUsernet() (sshPort string, err error) {
-	vmState, err := v.GetStatus()
+func (vm *Vm) SshForwardUsernet() (sshPort string, err error) {
+	vmState, err := vm.GetStatus()
 	if err != nil {
 		return "", err
 	}
 	if vmState["status"] == "stopped" {
 		return "", errors.New("VM must be running first")
 	}
-	sshPort = strconv.Itoa(v.Id() + 22000)
-	_, err = v.MonitorCmd("netdev_add user,id=net1,hostfwd=tcp::" + sshPort + "-:22")
+	sshPort = strconv.Itoa(vm.Id() + 22000)
+	_, err = vm.MonitorCmd("netdev_add user,id=net1,hostfwd=tcp::" + sshPort + "-:22")
 	if err != nil {
 		return "", err
 	}
-	_, err = v.MonitorCmd("device_add virtio-net-pci,id=net1,netdev=net1,addr=0x13")
+	_, err = vm.MonitorCmd("device_add virtio-net-pci,id=net1,netdev=net1,addr=0x13")
 	if err != nil {
 		return "", err
 	}
@@ -629,19 +628,19 @@ func (v *Vm) SshForwardUsernet() (sshPort string, err error) {
 
 // device_del net1
 // netdev_del net1
-func (v *Vm) RemoveSshForwardUsernet() (err error) {
-	vmState, err := v.GetStatus()
+func (vm *Vm) RemoveSshForwardUsernet() (err error) {
+	vmState, err := vm.GetStatus()
 	if err != nil {
 		return err
 	}
 	if vmState["status"] == "stopped" {
 		return errors.New("VM must be running first")
 	}
-	_, err = v.MonitorCmd("device_del net1")
+	_, err = vm.MonitorCmd("device_del net1")
 	if err != nil {
 		return err
 	}
-	_, err = v.MonitorCmd("netdev_del net1")
+	_, err = vm.MonitorCmd("netdev_del net1")
 	if err != nil {
 		return err
 	}
@@ -677,14 +676,14 @@ func (a *AgentNetworkInterface) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (v *Vm) GetAgentNetworkInterfaces() ([]AgentNetworkInterface, error) {
+func (vm *Vm) GetAgentNetworkInterfaces() ([]AgentNetworkInterface, error) {
 	var ifs []AgentNetworkInterface
-	err := v.Check()
+	err := vm.Check()
 	if err != nil {
 		return nil, err
 	}
 
-	url := fmt.Sprintf("/nodes/%s/%s/%d/agent/%s", v.node, v.vmtype, v.id, "network-get-interfaces")
+	url := fmt.Sprintf("/nodes/%s/%s/%d/agent/%s", vm.node, vm.vmtype, vm.id, "network-get-interfaces")
 	resp, err := GetClient().session.Get(url, nil, nil)
 	if err != nil {
 		return nil, err

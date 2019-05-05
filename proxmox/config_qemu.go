@@ -43,14 +43,14 @@ type ConfigQemu struct {
 }
 
 // CreateVm - Tell Proxmox API to make the VM
-func (config ConfigQemu) CreateVm(v *Vm) (err error) {
+func (config ConfigQemu) CreateVm(vm *Vm) (err error) {
 	if config.HasCloudInit() {
 		return errors.New("Cloud-init parameters only supported on clones or updates")
 	}
-	v.SetType("qemu")
+	vm.SetType("qemu")
 
 	params := map[string]interface{}{
-		"vmid":        v.id,
+		"vmid":        vm.id,
 		"name":        config.Name,
 		"onboot":      config.Onboot,
 		"agent":       config.Agent,
@@ -64,12 +64,12 @@ func (config ConfigQemu) CreateVm(v *Vm) (err error) {
 	}
 
 	// Create disks config.
-	config.CreateDisksParams(v.id, params, false)
+	config.CreateDisksParams(vm.id, params, false)
 
 	// Create networks config.
-	config.CreateNetParams(v.id, params)
+	config.CreateNetParams(vm.id, params)
 
-	exitStatus, err := v.Create(params)
+	exitStatus, err := vm.Create(params)
 	if err != nil {
 		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
@@ -87,7 +87,7 @@ func (config ConfigQemu) HasCloudInit() bool {
 		config.Ipconfig1 != ""
 }
 
-func (config ConfigQemu) UpdateConfig(v *Vm) (err error) {
+func (config ConfigQemu) UpdateConfig(vm *Vm) (err error) {
 	configParams := map[string]interface{}{
 		"name":        config.Name,
 		"description": config.Description,
@@ -99,10 +99,10 @@ func (config ConfigQemu) UpdateConfig(v *Vm) (err error) {
 	}
 
 	// Create disks config.
-	config.CreateDisksParams(v.id, configParams, true)
+	config.CreateDisksParams(vm.id, configParams, true)
 
 	// Create networks config.
-	config.CreateNetParams(v.id, configParams)
+	config.CreateNetParams(vm.id, configParams)
 
 	// cloud-init options
 	if config.CIuser != "" {
@@ -130,7 +130,7 @@ func (config ConfigQemu) UpdateConfig(v *Vm) (err error) {
 	if config.Ipconfig1 != "" {
 		configParams["ipconfig1"] = config.Ipconfig1
 	}
-	_, err = v.SetConfig(configParams)
+	_, err = vm.SetConfig(configParams)
 	return err
 }
 
@@ -154,10 +154,10 @@ var (
 	rxNicName  = regexp.MustCompile(`net\d+`)
 )
 
-func NewConfigQemuFromApi(v *Vm) (config *ConfigQemu, err error) {
+func NewConfigQemuFromApi(vm *Vm) (config *ConfigQemu, err error) {
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
-		vmConfig, err = v.GetConfig()
+		vmConfig, err = vm.GetConfig()
 		if err != nil {
 			log.Fatal(err)
 			return nil, err
