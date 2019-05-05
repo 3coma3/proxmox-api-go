@@ -15,38 +15,32 @@ import (
 	"time"
 )
 
-type (
-	LxcDevices     map[int]map[string]interface{}
-	LxcDevice      map[string]interface{}
-	LxcDeviceParam []string
-)
-
 // ConfigLxc - Proxmox API LXC options
 type ConfigLxc struct {
-	Arch         string     `json:"arch"`
-	Cmode        string     `json:"cmode"`
-	Console      bool       `json:"console"`
-	Cores        int        `json:"cores"`
-	Cpuunits     int        `json:"cpuunits"`
-	Description  string     `json:"description"`
-	Digest       string     `json:"digest"`
-	Hostname     string     `json:"hostname"`
-	Memory       int        `json:"memory"`
-	Mp           LxcDevices `json:"mp"`
-	Nameserver   string     `json:"nameserver"`
-	Net          LxcDevices `json:"net"`
-	Onboot       bool       `json:"onboot"`
-	Ostype       string     `json:"ostype"`
-	Ostemplate   string     `json:"ostemplate"`
-	Password     string     `json:"password"`
-	Protection   bool       `json:"protection"`
-	Rootfs       LxcDevice  `json:"rootfs"`
-	Searchdomain string     `json:"searchdomain"`
-	Startup      string     `json:"startup"`
-	Sshkeys      string     `json:"ssh-public-keys"`
-	Swap         int        `json:"swap"`
-	Tty          int        `json:"tty"`
-	Unprivileged bool       `json:"unprivileged"`
+	Arch         string    `json:"arch"`
+	Cmode        string    `json:"cmode"`
+	Console      bool      `json:"console"`
+	Cores        int       `json:"cores"`
+	Cpuunits     int       `json:"cpuunits"`
+	Description  string    `json:"description"`
+	Digest       string    `json:"digest"`
+	Hostname     string    `json:"hostname"`
+	Memory       int       `json:"memory"`
+	Mp           VmDevices `json:"mp"`
+	Nameserver   string    `json:"nameserver"`
+	Net          VmDevices `json:"net"`
+	Onboot       bool      `json:"onboot"`
+	Ostype       string    `json:"ostype"`
+	Ostemplate   string    `json:"ostemplate"`
+	Password     string    `json:"password"`
+	Protection   bool      `json:"protection"`
+	Rootfs       VmDevice  `json:"rootfs"`
+	Searchdomain string    `json:"searchdomain"`
+	Startup      string    `json:"startup"`
+	Sshkeys      string    `json:"ssh-public-keys"`
+	Swap         int       `json:"swap"`
+	Tty          int       `json:"tty"`
+	Unprivileged bool      `json:"unprivileged"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
@@ -152,13 +146,13 @@ func NewConfigLxc() *ConfigLxc {
 		Digest:       "",
 		Hostname:     "",
 		Memory:       512,
-		Mp:           LxcDevices{},
+		Mp:           VmDevices{},
 		Nameserver:   "",
-		Net:          LxcDevices{},
+		Net:          VmDevices{},
 		Onboot:       false,
 		Ostype:       "unmanaged",
 		Protection:   false,
-		Rootfs:       LxcDevice{},
+		Rootfs:       VmDevice{},
 		Searchdomain: "",
 		Sshkeys:      "",
 		Swap:         512,
@@ -282,7 +276,7 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	for _, mpName := range mps {
 		mpConfList := strings.Split(vmConfig[mpName].(string), ",")
 
-		mpConfMap := LxcDevice{}
+		mpConfMap := VmDevice{}
 		mpConfMap["storage"], mpConfMap["file"] = ParseSubConf(mpConfList[0], ":")
 
 		mpConfMap.readDeviceConfig(mpConfList[1:])
@@ -306,7 +300,7 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 	for _, nicName := range nicNames {
 		nicConfList := strings.Split(vmConfig[nicName].(string), ",")
 
-		nicConfMap := LxcDevice{}
+		nicConfMap := VmDevice{}
 		nicConfMap.readDeviceConfig(nicConfList)
 
 		if len(nicConfMap) > 0 {
@@ -323,7 +317,7 @@ func NewConfigLxcFromApi(vmr *VmRef, client *Client) (config *ConfigLxc, err err
 func (c ConfigLxc) CreateNetParams(vmID int, params map[string]interface{}) error {
 	for nicID, nicConfMap := range c.Net {
 
-		nicConfParam := LxcDeviceParam{}
+		nicConfParam := VmDeviceParam{}
 
 		// Set Nic name.
 		lxcNicName := "net" + strconv.Itoa(nicID)
@@ -373,8 +367,8 @@ func (c ConfigLxc) CreateMpParams(
 	params map[string]interface{},
 	cloned bool,
 ) error {
-	diskConfStr := func(diskID int, diskConfMap LxcDevice) string {
-		diskConfParam := LxcDeviceParam{}
+	diskConfStr := func(diskID int, diskConfMap VmDevice) string {
+		diskConfParam := VmDeviceParam{}
 
 		// disk size
 		diskSizeGB := fmt.Sprintf("size=%v", diskConfMap["size"])
@@ -421,41 +415,5 @@ func (c ConfigLxc) CreateMpParams(
 		params["mp"+strconv.Itoa(diskID)] = diskConfStr(diskID+2, diskConfMap)
 	}
 
-	return nil
-}
-
-// Create the parameters for each device that will be sent to Proxmox API.
-func (p LxcDeviceParam) createDeviceParam(
-	deviceConfMap LxcDevice,
-	ignoredKeys []string,
-) LxcDeviceParam {
-
-	for key, value := range deviceConfMap {
-		if ignored := inArray(ignoredKeys, key); !ignored {
-			var confValue interface{}
-			if bValue, ok := value.(bool); ok && bValue {
-				confValue = "1"
-			} else if sValue, ok := value.(string); ok && len(sValue) > 0 {
-				confValue = sValue
-			} else if iValue, ok := value.(int); ok && iValue > 0 {
-				confValue = iValue
-			}
-			if confValue != nil {
-				deviceConf := fmt.Sprintf("%v=%v", key, confValue)
-				p = append(p, deviceConf)
-			}
-		}
-	}
-
-	return p
-}
-
-// readDeviceConfig - get standard sub-conf strings where `key=value` and update conf map.
-func (confMap LxcDevice) readDeviceConfig(confList []string) error {
-	// Add device config.
-	for _, conf := range confList {
-		key, value := ParseSubConf(conf, "=")
-		confMap[key] = value
-	}
 	return nil
 }

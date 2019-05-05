@@ -15,25 +15,19 @@ import (
 	"time"
 )
 
-type (
-	QemuDevices     map[int]map[string]interface{}
-	QemuDevice      map[string]interface{}
-	QemuDeviceParam []string
-)
-
 // ConfigQemu - Proxmox API QEMU options
 type ConfigQemu struct {
-	Name        string      `json:"name"`
-	Description string      `json:"desc"`
-	Onboot      bool        `json:"onboot"`
-	Agent       string      `json:"agent"`
-	Memory      int         `json:"memory"`
-	QemuOs      string      `json:"os"`
-	QemuCores   int         `json:"cores"`
-	QemuSockets int         `json:"sockets"`
-	QemuIso     string      `json:"iso"`
-	Disk        QemuDevices `json:"disk"`
-	Net         QemuDevices `json:"net"`
+	Name        string    `json:"name"`
+	Description string    `json:"desc"`
+	Onboot      bool      `json:"onboot"`
+	Agent       string    `json:"agent"`
+	Memory      int       `json:"memory"`
+	QemuOs      string    `json:"os"`
+	QemuCores   int       `json:"cores"`
+	QemuSockets int       `json:"sockets"`
+	QemuIso     string    `json:"iso"`
+	Disk        VmDevices `json:"disk"`
+	Net         VmDevices `json:"net"`
 
 	// cloud-init options
 	CIuser     string `json:"ciuser"`
@@ -231,8 +225,8 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 		Memory:      int(memory),
 		QemuCores:   int(cores),
 		QemuSockets: int(sockets),
-		Disk:        QemuDevices{},
-		Net:         QemuDevices{},
+		Disk:        VmDevices{},
+		Net:         VmDevices{},
 	}
 
 	if vmConfig["ide2"] != nil {
@@ -279,7 +273,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 		storageName, fileName := ParseSubConf(diskConfList[0], ":")
 
 		//
-		diskConfMap := QemuDevice{
+		diskConfMap := VmDevice{
 			"type":    diskType,
 			"storage": storageName,
 			"file":    fileName,
@@ -314,7 +308,7 @@ func NewConfigQemuFromApi(vmr *VmRef, client *Client) (config *ConfigQemu, err e
 		model, macaddr := ParseSubConf(nicConfList[0], "=")
 
 		// Add model and MAC address.
-		nicConfMap := QemuDevice{
+		nicConfMap := VmDevice{
 			"model":   model,
 			"macaddr": macaddr,
 		}
@@ -472,7 +466,7 @@ func SendKeysString(vmr *VmRef, client *Client, keys string) (err error) {
 func (c ConfigQemu) CreateNetParams(vmID int, params map[string]interface{}) error {
 	for nicID, nicConfMap := range c.Net {
 
-		nicConfParam := QemuDeviceParam{}
+		nicConfParam := VmDeviceParam{}
 
 		// Set Nic name.
 		qemuNicName := "net" + strconv.Itoa(nicID)
@@ -528,7 +522,7 @@ func (c ConfigQemu) CreateDisksParams(
 		if diskID == 0 && cloned {
 			continue
 		}
-		diskConfParam := QemuDeviceParam{
+		diskConfParam := VmDeviceParam{
 			"media=disk",
 		}
 
@@ -570,41 +564,5 @@ func (c ConfigQemu) CreateDisksParams(
 		params[qemuDiskName] = strings.Join(diskConfParam, ",")
 	}
 
-	return nil
-}
-
-// Create the parameters for each device that will be sent to Proxmox API.
-func (p QemuDeviceParam) createDeviceParam(
-	deviceConfMap QemuDevice,
-	ignoredKeys []string,
-) QemuDeviceParam {
-
-	for key, value := range deviceConfMap {
-		if ignored := inArray(ignoredKeys, key); !ignored {
-			var confValue interface{}
-			if bValue, ok := value.(bool); ok && bValue {
-				confValue = "1"
-			} else if sValue, ok := value.(string); ok && len(sValue) > 0 {
-				confValue = sValue
-			} else if iValue, ok := value.(int); ok && iValue > 0 {
-				confValue = iValue
-			}
-			if confValue != nil {
-				deviceConf := fmt.Sprintf("%v=%v", key, confValue)
-				p = append(p, deviceConf)
-			}
-		}
-	}
-
-	return p
-}
-
-// readDeviceConfig - get standard sub-conf strings where `key=value` and update conf map.
-func (confMap QemuDevice) readDeviceConfig(confList []string) error {
-	// Add device config.
-	for _, conf := range confList {
-		key, value := ParseSubConf(conf, "=")
-		confMap[key] = value
-	}
 	return nil
 }

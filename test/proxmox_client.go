@@ -189,21 +189,21 @@ func init() {
 		client, _ := newClientAndVmr(options)
 
 		// only the json for the disks is needed on stdin
-		inputparams := proxmox.QemuDevice{}
+		inputparams := proxmox.VmDevice{}
 
 		// put whatever json is on stdin into a map[string]interface{}
 		failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
 
 		// put the map as QemuDisks[0] as if it were built by NewConfigQemuFromJson
 		config := &proxmox.ConfigQemu{
-			Disk: proxmox.QemuDevices{0: inputparams},
+			Disk: proxmox.VmDevices{0: inputparams},
 		}
 
 		// so now this method can build the PVEAPI-compatible "premap"
 		// this is a map of keys to config items, each config item will have
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
-		premap := proxmox.QemuDevice{}
+		premap := proxmox.VmDevice{}
 		config.CreateDisksParams(options.VMid, premap, false)
 
 		// separate the name and the configuration string for each premap entry
@@ -238,7 +238,7 @@ func init() {
 				}
 
 				// this is a neat reference on all the mappings the code has to
-				// do between user input, ConfigQemu/QemuDevice, deviceParam
+				// do between user input, ConfigQemu/VmDevice, deviceParam
 				// (premap),  deviceConfMap and finally "diskParams" ...
 				log.Println(inputparams)
 				log.Println(premap)

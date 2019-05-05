@@ -1,8 +1,15 @@
 package proxmox
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+)
+
+type (
+	VmDevices     map[int]map[string]interface{}
+	VmDevice      map[string]interface{}
+	VmDeviceParam []string
 )
 
 func inArray(arr []string, str string) bool {
@@ -51,7 +58,7 @@ func ParseConf(
 	kvString string,
 	confSeparator string,
 	subConfSeparator string,
-) QemuDevice {
+) VmDevice {
 	var confMap = QemuDevice{}
 	confList := strings.Split(kvString, confSeparator)
 	for _, item := range confList {
@@ -59,4 +66,40 @@ func ParseConf(
 		confMap[key] = value
 	}
 	return confMap
+}
+
+// Create the parameters for each device that will be sent to Proxmox API.
+func (p VmDeviceParam) createDeviceParam(
+	deviceConfMap VmDevice,
+	ignoredKeys []string,
+) VmDeviceParam {
+
+	for key, value := range deviceConfMap {
+		if ignored := inArray(ignoredKeys, key); !ignored {
+			var confValue interface{}
+			if bValue, ok := value.(bool); ok && bValue {
+				confValue = "1"
+			} else if sValue, ok := value.(string); ok && len(sValue) > 0 {
+				confValue = sValue
+			} else if iValue, ok := value.(int); ok && iValue > 0 {
+				confValue = iValue
+			}
+			if confValue != nil {
+				deviceConf := fmt.Sprintf("%v=%v", key, confValue)
+				p = append(p, deviceConf)
+			}
+		}
+	}
+
+	return p
+}
+
+// readDeviceConfig - get standard sub-conf strings where `key=value` and update conf map.
+func (confMap VmDevice) readDeviceConfig(confList []string) error {
+	// Add device config.
+	for _, conf := range confList {
+		key, value := ParseSubConf(conf, "=")
+		confMap[key] = value
+	}
+	return nil
 }

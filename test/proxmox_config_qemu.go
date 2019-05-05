@@ -76,7 +76,7 @@ func init() {
 
 	testActions["configqemu_createnetparams"] = func(options *TOptions) (response interface{}, err error) {
 		// only the json for the network is needed on stdin
-		inputparams := proxmox.QemuDevice{}
+		inputparams := proxmox.VmDevice{}
 
 		// put whatever json is on stdin into a map[string]interface{}
 		failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
@@ -84,20 +84,20 @@ func init() {
 		// put the map as QemuNetworks[0] as if it were built by
 		// NewConfigQemuFromJson
 		config := &proxmox.ConfigQemu{
-			Net: proxmox.QemuDevices{0: inputparams},
+			Net: proxmox.VmDevices{0: inputparams},
 		}
 
 		// so now this method can build the PVEAPI-compatible "premap"
 		// this is a map of keys to config items, each config item will have
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
-		premap := proxmox.QemuDevice{}
+		premap := proxmox.VmDevice{}
 		return premap, config.CreateNetParams(options.VMid, premap)
 	}
 
 	testActions["configqemu_createdisksparams"] = func(options *TOptions) (response interface{}, err error) {
 		// only the json for the network interfaces is needed on stdin
-		inputparams := proxmox.QemuDevice{}
+		inputparams := proxmox.VmDevice{}
 
 		// put whatever json is on stdin into a map[string]interface{}
 		failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
@@ -105,14 +105,14 @@ func init() {
 		// put the map as QemuDisks[0] as if it were built by
 		// NewConfigQemuFromJson
 		config := &proxmox.ConfigQemu{
-			Disk: proxmox.QemuDevices{0: inputparams},
+			Disk: proxmox.VmDevices{0: inputparams},
 		}
 
 		// so now this method can build the PVEAPI-compatible "premap"
 		// this is a map of keys to config items, each config item will have
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
-		premap := proxmox.QemuDevice{}
+		premap := proxmox.VmDevice{}
 		return premap, config.CreateDisksParams(options.VMid, premap, false)
 	}
 
