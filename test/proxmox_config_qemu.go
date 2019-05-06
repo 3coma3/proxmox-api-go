@@ -45,35 +45,6 @@ func init() {
 		return proxmox.NewConfigQemuFromApi(v)
 	}
 
-	testActions["configqemu_waitforshutdown"] = func(options *TOptions) (response interface{}, err error) {
-		_, v := newClientAndVmr(options)
-
-		// remember to use this to shutdown asynchronously
-		_, err = testActions["client_monitorcmd"](options)
-		failOnError(err)
-		return nil, v.WaitForShutdown()
-	}
-
-	testActions["vm_sshforwardusernet"] = func(options *TOptions) (response interface{}, err error) {
-		_, v := newClientAndVmr(options)
-		return v.SshForwardUsernet()
-	}
-
-	testActions["vm_removesshforwardusernet"] = func(options *TOptions) (response interface{}, err error) {
-		_, v := newClientAndVmr(options)
-		return nil, v.RemoveSshForwardUsernet()
-	}
-
-	testActions["configqemu_maxvmid"] = func(options *TOptions) (response interface{}, err error) {
-		_, _ = newClientAndVmr(options)
-		return proxmox.GetMaxVmId()
-	}
-
-	testActions["configqemu_sendkeysstring"] = func(options *TOptions) (response interface{}, err error) {
-		_, v := newClientAndVmr(options)
-		return nil, v.SendKeysString(options.Args[1])
-	}
-
 	testActions["configqemu_createnetparams"] = func(options *TOptions) (response interface{}, err error) {
 		// only the json for the network is needed on stdin
 		inputparams := proxmox.VmDevice{}

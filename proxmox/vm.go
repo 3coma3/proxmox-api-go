@@ -143,6 +143,22 @@ func (vm *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err er
 	return
 }
 
+func (vm *Vm) CreateTemplate() error {
+	err := vm.Check()
+	if err != nil {
+		return err
+	}
+
+	reqbody := ParamsToBody(map[string]interface{}{"experimental": true})
+	url := fmt.Sprintf("/nodes/%s/%s/%d/template", vm.node, vm.vmtype, vm.id)
+	_, err = GetClient().session.Post(url, nil, nil, &reqbody)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (vm *Vm) Clone(newid int, cloneParams map[string]interface{}) (exitStatus interface{}, err error) {
 	err = vm.Check()
 	if err != nil {
@@ -161,22 +177,6 @@ func (vm *Vm) Clone(newid int, cloneParams map[string]interface{}) (exitStatus i
 		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	}
 	return
-}
-
-func (vm *Vm) CreateTemplate() error {
-	err := vm.Check()
-	if err != nil {
-		return err
-	}
-
-	reqbody := ParamsToBody(map[string]interface{}{"experimental": true})
-	url := fmt.Sprintf("/nodes/%s/%s/%d/template", vm.node, vm.vmtype, vm.id)
-	_, err = GetClient().session.Post(url, nil, nil, &reqbody)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (vm *Vm) Delete() (exitStatus string, err error) {
@@ -289,6 +289,18 @@ func (vm *Vm) Start() (exitStatus string, err error) {
 	return vm.SetStatus("start")
 }
 
+func (vm *Vm) Suspend() (exitStatus string, err error) {
+	return vm.SetStatus("suspend")
+}
+
+func (vm *Vm) Resume() (exitStatus string, err error) {
+	return vm.SetStatus("resume")
+}
+
+func (vm *Vm) Reset() (exitStatus string, err error) {
+	return vm.SetStatus("reset")
+}
+
 func (vm *Vm) Stop() (exitStatus string, err error) {
 	return vm.SetStatus("stop")
 }
@@ -310,18 +322,6 @@ func (vm *Vm) WaitForShutdown() (err error) {
 		time.Sleep(5 * time.Second)
 	}
 	return errors.New("Not shutdown within wait time")
-}
-
-func (vm *Vm) Reset() (exitStatus string, err error) {
-	return vm.SetStatus("reset")
-}
-
-func (vm *Vm) Suspend() (exitStatus string, err error) {
-	return vm.SetStatus("suspend")
-}
-
-func (vm *Vm) Resume() (exitStatus string, err error) {
-	return vm.SetStatus("resume")
 }
 
 func (vm *Vm) Migrate(migrateParams map[string]interface{}) (exitStatus interface{}, err error) {

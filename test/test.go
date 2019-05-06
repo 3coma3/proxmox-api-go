@@ -109,7 +109,6 @@ func newClientAndVmr(options *TOptions) (client *proxmox.Client, v *proxmox.Vm) 
 	failOnError(err)
 
 	askUserPass(options)
-
 	failOnError(client.Login(options.APIuser, options.APIpass))
 
 	client.Set()

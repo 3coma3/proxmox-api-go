@@ -154,13 +154,12 @@ func init() {
 	}
 
 	// this test sheds some light on the reason for the multiple mappings and
-	// translations between them, often using similar or confusing names for
-	// data and code: there is a Json for user input, another for PVE, and
-	// another format for the methods that create disks. Validations must be
-	// done on maps so WHERE these validations are done could be key in
-	// simplifying the scheme (try to avoid to generate configuration strings
-	// too early for example, so we have to stop-by and create a map to
-	// manipulate and do checks, then translate again... so on)
+	// translations between them: there is a Json for user input, another for
+	// PVE, and another format for the methods that create disks. Validations
+	// must be done on maps so WHERE these validations are done could be key
+	// in simplifying the scheme (try to avoid to generate configuration
+	// strings too early for example, so we have to stop-by and create a map
+	// to  manipulate and do checks, then translate again... so on)
 	testActions["vm_createdisk"] = func(options *TOptions) (response interface{}, err error) {
 		_, _ = newClientAndVmr(options)
 
@@ -207,9 +206,7 @@ func init() {
 					volumeName = match[1]
 				}
 
-				// I can find little justification on yet another map. why
-				// aren't at this point already the final keys and elements as
-				// needed by CreateVMDisk?
+				// this map is specially prepared for the disk creation
 				diskParams := map[string]interface{}{
 					"vmid":     options.VMid,
 					"filename": volumeName,
