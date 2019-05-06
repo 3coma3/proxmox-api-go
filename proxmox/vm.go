@@ -539,13 +539,7 @@ func (vm *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, e
 		return "", err
 	}
 
-	// PUT
-	//disk:virtio0
-	//size:+2G
-	if disk == "" {
-		disk = "virtio0"
-	}
-	size := fmt.Sprintf("+%dG", moreSizeGB)
+	size := fmt.Sprintf("%d", moreSizeGB)
 	reqbody := ParamsToBody(map[string]interface{}{"disk": disk, "size": size})
 	url := fmt.Sprintf("/nodes/%s/%s/%d/resize", vm.node, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Put(url, nil, nil, &reqbody)

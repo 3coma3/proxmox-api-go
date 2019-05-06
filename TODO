@@ -1,4 +1,3 @@
-volume resize
 volume delete
 verify storage formats and backends
 reimplement sendkeysstring, add support for enter and other keys
