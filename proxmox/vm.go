@@ -508,7 +508,37 @@ func createDisks(
 	return createdDisks, nil
 }
 
+func (vm *Vm) MoveDisk(moveParams map[string]interface{}) (exitStatus interface{}, err error) {
+	err = vm.Check()
+	if err != nil {
+		return "", err
+	}
+
+	reqbody := ParamsToBody(moveParams)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/move_", vm.node, vm.vmtype, vm.id)
+	if vm.vmtype == "qemu" {
+		url += "disk"
+	} else {
+		url += "volume"
+	}
+
+	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
+	if err == nil {
+		taskResponse, err := ResponseJSON(resp)
+		if err != nil {
+			return nil, err
+		}
+		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+	}
+	return
+}
+
 func (vm *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, err error) {
+	err = vm.Check()
+	if err != nil {
+		return "", err
+	}
+
 	// PUT
 	//disk:virtio0
 	//size:+2G

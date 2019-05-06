@@ -265,6 +265,13 @@ func init() {
 		return
 	}
 
+	testActions["vm_movedisk"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+		moveParams := map[string]interface{}{}
+		failOnError(json.NewDecoder(os.Stdin).Decode(&moveParams))
+		return vm.MoveDisk(moveParams)
+	}
+
 	testActions["vm_resizedisk"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
 		vm.SetNode(options.Args[1])
