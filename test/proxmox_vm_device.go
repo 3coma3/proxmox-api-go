@@ -1,7 +1,7 @@
 package test
 
 import (
-	"../proxmox"
+	"github.com/3coma3/proxmox-api-go/proxmox"
 )
 
 func init() {
