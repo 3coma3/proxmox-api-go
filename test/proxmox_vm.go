@@ -174,6 +174,15 @@ func init() {
 		return vm.Rollback(options.Args[1])
 	}
 
+	testActions["vm_createbackup"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+
+		bkpParams := map[string]interface{}{}
+		failOnError(json.NewDecoder(os.Stdin).Decode(&bkpParams))
+
+		return vm.CreateBackup(bkpParams)
+	}
+
 	// this test sheds some light on the reason for the multiple mappings and
 	// translations between them: there is a Json for user input, another for
 	// PVE, and another format for the methods that create disks. Validations

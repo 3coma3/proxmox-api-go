@@ -395,6 +395,28 @@ func (vm *Vm) Rollback(snapName string) (exitStatus string, err error) {
 	return
 }
 
+func (vm *Vm) CreateBackup(bkpParams map[string]interface{}) (exitStatus string, err error) {
+	err = vm.Check()
+	if err != nil {
+		return "", err
+	}
+
+	bkpParams["vmid"] = vm.id
+
+	reqbody := ParamsToBody(bkpParams)
+
+	url := fmt.Sprintf("/nodes/%s/vzdump", vm.node)
+	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
+	if err == nil {
+		taskResponse, err := ResponseJSON(resp)
+		if err != nil {
+			return "", err
+		}
+		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+	}
+	return
+}
+
 // CreateVMDisk - Create single disk for VM on host node.
 // TODO: add autodetection of existant volumes and act accordingly
 func CreateDisk(
