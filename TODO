@@ -1,0 +1,19 @@
+volume resize
+volume delete
+verify storage formats and backends
+reimplement sendkeysstring, add support for enter and other keys
+unify Config*.CreateVm and Config.*CloneVm, make them return the params map and have the action be managed by Vm.CreateVm/CloneVm
+
+later
+volume semantics commit 77cb5ec9a14b0fb85b6b552c2f60223d80a58a01
+change struct to maps for deserialization
+add layer with more hl logics (currently in the testing code mostly) to library
+add layer operating with JSON input with lists of VMs and CTs, list of operations
+clean session / client (and/or migrate to resty)
+debug/param/logging code (or migrate to CLI lib), base CLI semantics on PVESH
+full test suite
+docs
+
+even later
+add structures and code for Nodes, Pools, Storage, and Cluster
+progress towards full coverage
