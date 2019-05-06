@@ -1,9 +1,9 @@
 package test
 
 import (
-	"../proxmox"
 	"crypto/tls"
 	"errors"
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"net/url"
 	"os"
 	"strconv"

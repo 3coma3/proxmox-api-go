@@ -1,9 +1,9 @@
 package main
 
 import (
-	"./test"
 	"flag"
 	"fmt"
+	"github.com/3coma3/proxmox-api-go/test"
 	"os"
 	"strconv"
 )

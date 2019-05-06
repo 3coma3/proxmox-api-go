@@ -575,25 +575,6 @@ func (vm *Vm) DeleteDisks(disks []string) error {
 	return nil
 }
 
-// getStorageAndVolumeName - Extract disk storage and disk volume, since disk name is saved
-// in Proxmox with its storage.
-func getStorageAndVolumeName(
-	fullDiskName string,
-	separator string,
-) (storageName string, diskName string) {
-	storageAndVolumeName := strings.Split(fullDiskName, separator)
-	storageName, volumeName := storageAndVolumeName[0], storageAndVolumeName[1]
-
-	// when disk type is dir, volumeName is `file=local:100/vm-100-disk-0.raw`
-	re := regexp.MustCompile(`\d+/(?P<filename>\S+.\S+)`)
-	match := re.FindStringSubmatch(volumeName)
-	if len(match) == 2 {
-		volumeName = match[1]
-	}
-
-	return storageName, volumeName
-}
-
 func (vm *Vm) GetSpiceProxy() (vmSpiceProxy map[string]interface{}, err error) {
 	err = vm.Check()
 	if err != nil {

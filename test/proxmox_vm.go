@@ -1,9 +1,9 @@
 package test
 
 import (
-	"../proxmox"
 	"encoding/json"
 	"errors"
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"log"
 	"os"
 	"regexp"

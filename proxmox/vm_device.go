@@ -2,6 +2,7 @@ package proxmox
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -94,7 +95,6 @@ func (p VmDeviceParam) createDeviceParam(
 	return p
 }
 
-// readDeviceConfig - get standard sub-conf strings where `key=value` and update conf map.
 func (confMap VmDevice) readDeviceConfig(confList []string) error {
 	// Add device config.
 	for _, conf := range confList {
@@ -102,4 +102,23 @@ func (confMap VmDevice) readDeviceConfig(confList []string) error {
 		confMap[key] = value
 	}
 	return nil
+}
+
+// getStorageAndVolumeName - Extract disk storage and disk volume, since disk name is saved
+// in Proxmox with its storage.
+func getStorageAndVolumeName(
+	fullDiskName string,
+	separator string,
+) (storageName string, diskName string) {
+	storageAndVolumeName := strings.Split(fullDiskName, separator)
+	storageName, volumeName := storageAndVolumeName[0], storageAndVolumeName[1]
+
+	// when disk type is dir, volumeName is `file=local:100/vm-100-disk-0.raw`
+	re := regexp.MustCompile(`\d+/(?P<filename>\S+.\S+)`)
+	match := re.FindStringSubmatch(volumeName)
+	if len(match) == 2 {
+		volumeName = match[1]
+	}
+
+	return storageName, volumeName
 }

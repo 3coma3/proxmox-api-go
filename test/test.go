@@ -1,12 +1,12 @@
 package test
 
 import (
-	"../proxmox"
 	"bufio"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"log"
 	"net/url"
 	"os"

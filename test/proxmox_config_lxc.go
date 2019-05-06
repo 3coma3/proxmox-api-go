@@ -1,8 +1,8 @@
 package test
 
 import (
-	"../proxmox"
 	"encoding/json"
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"os"
 )
 
