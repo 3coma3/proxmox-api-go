@@ -6,11 +6,12 @@ import (
 	"strings"
 )
 
-type (
-	VmDevices     map[int]map[string]interface{}
-	VmDevice      map[string]interface{}
-	VmDeviceParam []string
-)
+func Itob(i int) bool {
+	if i == 1 {
+		return true
+	}
+	return false
+}
 
 func inArray(arr []string, str string) bool {
 	for _, elem := range arr {
@@ -19,13 +20,6 @@ func inArray(arr []string, str string) bool {
 		}
 	}
 
-	return false
-}
-
-func Itob(i int) bool {
-	if i == 1 {
-		return true
-	}
 	return false
 }
 
@@ -67,6 +61,12 @@ func ParseConf(
 	}
 	return confMap
 }
+
+type (
+	VmDevices     map[int]map[string]interface{}
+	VmDevice      map[string]interface{}
+	VmDeviceParam []string
+)
 
 // Create the parameters for each device that will be sent to Proxmox API.
 func (p VmDeviceParam) createDeviceParam(
