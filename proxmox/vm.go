@@ -373,6 +373,16 @@ func (vm *Vm) CreateSnapshot(snapParams map[string]interface{}) (exitStatus stri
 	return
 }
 
+func (vm *Vm) DeleteSnapshot(snapName string) (exitStatus interface{}, err error) {
+	err = vm.Check()
+	if err != nil {
+		return "", err
+	}
+
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s", vm.node, vm.vmtype, vm.id, snapName)
+	return GetClient().session.Delete(url, nil, nil)
+}
+
 func (vm *Vm) Rollback(snapName string) (exitStatus string, err error) {
 	err = vm.Check()
 	if err != nil {

@@ -164,6 +164,11 @@ func init() {
 		return vm.CreateSnapshot(snapParams)
 	}
 
+	testActions["vm_deletesnapshot"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+		return vm.DeleteSnapshot(options.Args[1])
+	}
+
 	testActions["vm_rollback"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
 		return vm.Rollback(options.Args[1])
