@@ -148,6 +148,22 @@ func init() {
 		return vm.Migrate(migrateParams)
 	}
 
+	testActions["vm_getsnapshotlist"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+		return vm.GetSnapshotList()
+	}
+
+	testActions["vm_createsnapshot"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+
+		snapParams := map[string]interface{}{}
+		failOnError(json.NewDecoder(os.Stdin).Decode(&snapParams))
+
+		snapParams["target"] = options.Args[1]
+
+		return vm.CreateSnapshot(snapParams)
+	}
+
 	testActions["vm_rollback"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
 		return vm.Rollback(options.Args[1])

@@ -343,12 +343,42 @@ func (vm *Vm) Migrate(migrateParams map[string]interface{}) (exitStatus interfac
 	return
 }
 
-func (vm *Vm) Rollback(snapshot string) (exitStatus string, err error) {
+func (vm *Vm) GetSnapshotList() (list map[string]interface{}, err error) {
+	err = vm.Check()
+	if err != nil {
+		return nil, err
+	}
+
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/", vm.node, vm.vmtype, vm.id)
+	err = GetClient().GetJsonRetryable(url, &list, 3)
+	return
+}
+
+func (vm *Vm) CreateSnapshot(snapParams map[string]interface{}) (exitStatus string, err error) {
 	err = vm.Check()
 	if err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", vm.node, vm.vmtype, vm.id, snapshot)
+
+	reqbody := ParamsToBody(snapParams)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot", vm.node, vm.vmtype, vm.id)
+	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
+	if err == nil {
+		taskResponse, err := ResponseJSON(resp)
+		if err != nil {
+			return "", err
+		}
+		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+	}
+	return
+}
+
+func (vm *Vm) Rollback(snapName string) (exitStatus string, err error) {
+	err = vm.Check()
+	if err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", vm.node, vm.vmtype, vm.id, snapName)
 	var taskResponse map[string]interface{}
 	_, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse)
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
