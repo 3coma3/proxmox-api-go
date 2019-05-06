@@ -159,7 +159,7 @@ func init() {
 		snapParams := map[string]interface{}{}
 		failOnError(json.NewDecoder(os.Stdin).Decode(&snapParams))
 
-		snapParams["target"] = options.Args[1]
+		snapParams["snapname"] = options.Args[1]
 
 		return vm.CreateSnapshot(snapParams)
 	}
