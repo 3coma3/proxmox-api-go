@@ -1,18 +1,11 @@
 package test
 
-import (
-	"github.com/3coma3/proxmox-api-go/proxmox"
-)
-
 func init() {
-	// move this to node code tests
-	testActions["node_getnodelist"] = func(options *TOptions) (response interface{}, err error) {
-		_, _ = newClientAndVmr(options)
-		return proxmox.GetNodeList()
-	}
-
-	// lean factories
+	// factory
 	testActions["client_newclient"] = errNotImplemented
+
+	// tested in session_login
+	testActions["client_login"] = errNotImplemented
 
 	// TODO
 	testActions["client_getjsonretryable"] = errNotImplemented

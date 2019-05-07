@@ -1,16 +1,14 @@
 package test
 
 import (
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"encoding/json"
 	"errors"
-	"github.com/3coma3/proxmox-api-go/proxmox"
-	"log"
 	"os"
 )
 
 func init() {
-	// lean factories
-	// getters and setters
+	// factories getters and setters
 	testActions["vm_newm"] = errNotImplemented
 	testActions["vm_id"] = errNotImplemented
 	testActions["vm_node"] = errNotImplemented
@@ -180,77 +178,6 @@ func init() {
 		return vm.CreateBackup(bkpParams)
 	}
 
-	// this test sheds some light on the reason for the multiple mappings and
-	// translations between them: there is a Json for user input, another for
-	// PVE, and another format for the methods that create disks. Validations
-	// must be done on maps so WHERE these validations are done could be key
-	// in simplifying the scheme (try to avoid to generate configuration
-	// strings too early for example, so we have to stop-by and create a map
-	// to  manipulate and do checks, then translate again... so on)
-	testActions["node_createvolume"] = func(options *TOptions) (response interface{}, err error) {
-		_, _ = newClientAndVmr(options)
-
-		// only the json for the disks is needed on stdin
-		inputparams := proxmox.VmDevice{}
-
-		// put whatever json is on stdin into a map[string]interface{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
-
-		// put the map as QemuDisks[0] as if it were built by
-		// NewConfigQemuFromJson
-		config := &proxmox.ConfigQemu{
-			Disk: proxmox.VmDevices{0: inputparams},
-		}
-
-		// so now this method can build the PVEAPI-compatible "premap"
-		// this is a map of keys to config items, each config item will have
-		// a device name and a configuration with two levels of subelements
-		// this method rewrites heavily the input parameters
-		premap := proxmox.VmDevice{}
-		config.CreateDisksParams(options.VMid, premap, false)
-
-		// separate the name and the configuration string for each premap entry
-		// we won't need to filter device names looking for virtio,ide,etc as we
-		// are testing and we know we will get a correct configuration
-		for _, deviceConf := range premap {
-
-			// build another map[string]interface{} out of the config string
-			// "," separates a kv pair, "=" separates k from v
-			deviceConfMap := proxmox.ParseConf(deviceConf.(string), ",", "=")
-
-			// filter out `media=cdrom`.
-			if media, containsFile := deviceConfMap["media"]; containsFile && media == "disk" {
-
-				fullDiskName := deviceConfMap["file"].(string)
-
-				// this map is specially prepared for the disk creation
-				diskParams := map[string]interface{}{
-					"vmid": options.VMid,
-					"size": deviceConfMap["size"],
-				}
-
-				// this is a neat reference on all the mappings the code has to
-				// do between user input, ConfigQemu/VmDevice, deviceParam
-				// (premap),  deviceConfMap and finally "diskParams" ...
-				log.Println(inputparams)
-				log.Println(premap)
-				log.Println(deviceConf)
-				log.Println(deviceConfMap)
-				log.Println(diskParams)
-
-				// anyway this is what the method needs to function, and it will
-				// create the disk. The fixed parameters are mostly so it
-				// doesn't have to parse again any map, it will use them for
-				// information and checking the volume isn't there already
-				// after creating the disk the function fails, finding out why
-				// is what is left for this test to complete
-				return nil, proxmox.NewNode(options.Args[1]).CreateVolume(fullDiskName, diskParams)
-			}
-		}
-
-		return
-	}
-
 	testActions["vm_movedisk"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
 		moveParams := map[string]interface{}{}
@@ -288,5 +215,8 @@ func init() {
 		return nil, vm.RemoveSshForwardUsernet()
 	}
 
-	testActions["vm_getagentnetworkinterfaces"] = errNotImplemented
+	testActions["vm_getagentnetworkinterfaces"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+		return vm.GetAgentNetworkInterfaces()
+	}
 }
