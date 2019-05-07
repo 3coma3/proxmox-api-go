@@ -1,8 +1,8 @@
 package test
 
 import (
-	"encoding/json"
 	"github.com/3coma3/proxmox-api-go/proxmox"
+	"encoding/json"
 	"os"
 )
 
@@ -13,7 +13,7 @@ func init() {
 		config, err := proxmox.NewConfigLxcFromJson(os.Stdin, false)
 		failOnError(err)
 
-		vm.SetNode(options.Args[1])
+		vm.SetNode(proxmox.NewNode(options.Args[1]))
 		config.CreateVm(vm)
 		return nil, nil
 	}
@@ -27,7 +27,7 @@ func init() {
 		vminfo, err := vm.GetInfo()
 		failOnError(err)
 
-		vm.SetNode(vminfo["node"].(string))
+		vm.SetNode(proxmox.NewNode(vminfo["node"].(string)))
 		vm.SetType(vminfo["type"].(string))
 		config.UpdateConfig(vm)
 		return nil, err

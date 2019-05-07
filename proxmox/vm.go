@@ -150,7 +150,7 @@ func (vm *Vm) CreateTemplate() error {
 	}
 
 	reqbody := ParamsToBody(map[string]interface{}{"experimental": true})
-	url := fmt.Sprintf("/nodes/%s/%s/%d/template", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/template", vm.node.name, vm.vmtype, vm.id)
 	_, err = GetClient().session.Post(url, nil, nil, &reqbody)
 	if err != nil {
 		return err
@@ -167,7 +167,7 @@ func (vm *Vm) Clone(newid int, cloneParams map[string]interface{}) (exitStatus i
 
 	cloneParams["newid"] = newid
 	reqbody := ParamsToBody(cloneParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vm.node.name, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -184,7 +184,7 @@ func (vm *Vm) Delete() (exitStatus string, err error) {
 	if err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("/nodes/%s/%s/%d", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d", vm.node.name, vm.vmtype, vm.id)
 	var taskResponse map[string]interface{}
 	_, err = GetClient().session.RequestJSON("DELETE", url, nil, nil, nil, &taskResponse)
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
@@ -211,7 +211,7 @@ func (vm *Vm) GetConfig() (config map[string]interface{}, err error) {
 		return nil, err
 	}
 	var data map[string]interface{}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node.name, vm.vmtype, vm.id)
 	err = GetClient().GetJsonRetryable(url, &data, 3)
 	if err != nil {
 		return nil, err
@@ -225,7 +225,7 @@ func (vm *Vm) GetConfig() (config map[string]interface{}, err error) {
 
 func (vm *Vm) SetConfig(vmParams map[string]interface{}) (exitStatus interface{}, err error) {
 	reqbody := ParamsToBody(vmParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node.name, vm.vmtype, vm.id)
 
 	var resp *http.Response
 
@@ -253,7 +253,7 @@ func (vm *Vm) GetStatus() (vmState map[string]interface{}, err error) {
 		return nil, err
 	}
 	var data map[string]interface{}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/status/current", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/status/current", vm.node.name, vm.vmtype, vm.id)
 	err = GetClient().GetJsonRetryable(url, &data, 3)
 	if err != nil {
 		return nil, err
@@ -271,7 +271,7 @@ func (vm *Vm) SetStatus(setStatus string) (exitStatus string, err error) {
 		return "", err
 	}
 
-	url := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", vm.node, vm.vmtype, vm.id, setStatus)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", vm.node.name, vm.vmtype, vm.id, setStatus)
 	var taskResponse map[string]interface{}
 	for i := 0; i < 3; i++ {
 		_, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse)
@@ -331,7 +331,7 @@ func (vm *Vm) Migrate(migrateParams map[string]interface{}) (exitStatus interfac
 	}
 
 	reqbody := ParamsToBody(migrateParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/migrate", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/migrate", vm.node.name, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -349,7 +349,7 @@ func (vm *Vm) GetSnapshotList() (list map[string]interface{}, err error) {
 		return nil, err
 	}
 
-	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/", vm.node.name, vm.vmtype, vm.id)
 	err = GetClient().GetJsonRetryable(url, &list, 3)
 	return
 }
@@ -361,7 +361,7 @@ func (vm *Vm) CreateSnapshot(snapParams map[string]interface{}) (exitStatus stri
 	}
 
 	reqbody := ParamsToBody(snapParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot", vm.node.name, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -379,7 +379,7 @@ func (vm *Vm) DeleteSnapshot(snapName string) (exitStatus interface{}, err error
 		return "", err
 	}
 
-	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s", vm.node, vm.vmtype, vm.id, snapName)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s", vm.node.name, vm.vmtype, vm.id, snapName)
 	return GetClient().session.Delete(url, nil, nil)
 }
 
@@ -388,7 +388,7 @@ func (vm *Vm) Rollback(snapName string) (exitStatus string, err error) {
 	if err != nil {
 		return "", err
 	}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", vm.node, vm.vmtype, vm.id, snapName)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", vm.node.name, vm.vmtype, vm.id, snapName)
 	var taskResponse map[string]interface{}
 	_, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse)
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
@@ -405,7 +405,7 @@ func (vm *Vm) CreateBackup(bkpParams map[string]interface{}) (exitStatus string,
 
 	reqbody := ParamsToBody(bkpParams)
 
-	url := fmt.Sprintf("/nodes/%s/vzdump", vm.node)
+	url := fmt.Sprintf("/nodes/%s/vzdump", vm.node.name)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -515,7 +515,7 @@ func (vm *Vm) MoveDisk(moveParams map[string]interface{}) (exitStatus interface{
 	}
 
 	reqbody := ParamsToBody(moveParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/move_", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/move_", vm.node.name, vm.vmtype, vm.id)
 	if vm.vmtype == "qemu" {
 		url += "disk"
 	} else {
@@ -541,7 +541,7 @@ func (vm *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, e
 
 	size := fmt.Sprintf("%d", moreSizeGB)
 	reqbody := ParamsToBody(map[string]interface{}{"disk": disk, "size": size})
-	url := fmt.Sprintf("/nodes/%s/%s/%d/resize", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/resize", vm.node.name, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Put(url, nil, nil, &reqbody)
 	if err == nil {
 		taskResponse, err := ResponseJSON(resp)
@@ -575,7 +575,7 @@ func (vm *Vm) GetSpiceProxy() (vmSpiceProxy map[string]interface{}, err error) {
 		return nil, err
 	}
 	var data map[string]interface{}
-	url := fmt.Sprintf("/nodes/%s/%s/%d/spiceproxy", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/spiceproxy", vm.node.name, vm.vmtype, vm.id)
 	_, err = GetClient().session.PostJSON(url, nil, nil, nil, &data)
 	if err != nil {
 		return nil, err
@@ -593,7 +593,7 @@ func (vm *Vm) MonitorCmd(command string) (monitorRes map[string]interface{}, err
 		return nil, err
 	}
 	reqbody := ParamsToBody(map[string]interface{}{"command": command})
-	url := fmt.Sprintf("/nodes/%s/%s/%d/monitor", vm.node, vm.vmtype, vm.id)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/monitor", vm.node.name, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	monitorRes, err = ResponseJSON(resp)
 	return
@@ -750,7 +750,7 @@ func (vm *Vm) GetAgentNetworkInterfaces() ([]AgentNetworkInterface, error) {
 		return nil, err
 	}
 
-	url := fmt.Sprintf("/nodes/%s/%s/%d/agent/%s", vm.node, vm.vmtype, vm.id, "network-get-interfaces")
+	url := fmt.Sprintf("/nodes/%s/%s/%d/agent/%s", vm.node.name, vm.vmtype, vm.id, "network-get-interfaces")
 	resp, err := GetClient().session.Get(url, nil, nil)
 	if err != nil {
 		return nil, err

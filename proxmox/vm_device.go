@@ -2,7 +2,6 @@ package proxmox
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 )

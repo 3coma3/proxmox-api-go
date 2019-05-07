@@ -190,7 +190,7 @@ func init() {
 	// in simplifying the scheme (try to avoid to generate configuration
 	// strings too early for example, so we have to stop-by and create a map
 	// to  manipulate and do checks, then translate again... so on)
-	testActions["vm_createdisk"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["node_createvolume"] = func(options *TOptions) (response interface{}, err error) {
 		_, _ = newClientAndVmr(options)
 
 		// only the json for the disks is needed on stdin
@@ -226,21 +226,10 @@ func init() {
 
 				fullDiskName := deviceConfMap["file"].(string)
 
-				// this step is done in DeleteVMDisks, but not in CreateVMDisk
-				storageAndVolumeName := strings.Split(fullDiskName, ":")
-				storageName, volumeName := storageAndVolumeName[0], storageAndVolumeName[1]
-
-				// when disk type is dir, volumeName is `file=local:100/vm-100-disk-0.raw`
-				match := regexp.MustCompile(`\d+/(?P<filename>\S+.\S+)`).FindStringSubmatch(volumeName)
-				if len(match) == 2 {
-					volumeName = match[1]
-				}
-
 				// this map is specially prepared for the disk creation
 				diskParams := map[string]interface{}{
-					"vmid":     options.VMid,
-					"filename": volumeName,
-					"size":     deviceConfMap["size"],
+					"vmid": options.VMid,
+					"size": deviceConfMap["size"],
 				}
 
 				// this is a neat reference on all the mappings the code has to
@@ -258,7 +247,7 @@ func init() {
 				// information and checking the volume isn't there already
 				// after creating the disk the function fails, finding out why
 				// is what is left for this test to complete
-				return nil, proxmox.CreateDisk(options.Args[1], storageName, fullDiskName, diskParams)
+				return nil, proxmox.NewNode(options.Args[1]).CreateVolume(fullDiskName, diskParams)
 			}
 		}
 
@@ -274,7 +263,7 @@ func init() {
 
 	testActions["vm_resizedisk"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
-		vm.SetNode(options.Args[1])
+		vm.SetNode(proxmox.NewNode(options.Args[1]))
 		vm.SetType("qemu")
 		moreSizeGB, err := strconv.Atoi(options.Args[3])
 		failOnError(err)
