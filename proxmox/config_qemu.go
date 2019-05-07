@@ -69,10 +69,10 @@ func (config ConfigQemu) CreateVm(vm *Vm) (err error) {
 	// Create networks config.
 	config.CreateNetParams(vm.id, params)
 
-	exitStatus, err := vm.Create(params)
-	if err != nil {
-		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
+	if exitStatus, err := vm.Create(params); err != nil {
+		err = fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
+
 	return
 }
 
@@ -130,19 +130,21 @@ func (config ConfigQemu) UpdateConfig(vm *Vm) (err error) {
 	if config.Ipconfig1 != "" {
 		configParams["ipconfig1"] = config.Ipconfig1
 	}
+
 	_, err = vm.SetConfig(configParams)
-	return err
+
+	return
 }
 
 func NewConfigQemuFromJson(io io.Reader) (config *ConfigQemu, err error) {
 	config = &ConfigQemu{}
 
-	err = json.NewDecoder(io).Decode(config)
-	if err != nil {
+	if err = json.NewDecoder(io).Decode(config); err != nil {
 		log.Fatal(err)
-		return nil, err
+	} else {
+		log.Println(config)
 	}
-	log.Println(config)
+
 	return
 }
 
@@ -156,12 +158,13 @@ var (
 
 func NewConfigQemuFromApi(vm *Vm) (config *ConfigQemu, err error) {
 	var vmConfig map[string]interface{}
+
 	for ii := 0; ii < 3; ii++ {
-		vmConfig, err = vm.GetConfig()
-		if err != nil {
+		if vmConfig, err = vm.GetConfig(); err != nil {
 			log.Fatal(err)
 			return nil, err
 		}
+
 		// this can happen:
 		// {"data":{"lock":"clone","digest":"eb54fb9d9f120ba0c3bdf694f73b10002c375c38","description":" qmclone temporary file\n"}})
 		if vmConfig["lock"] == nil {
@@ -326,7 +329,7 @@ func NewConfigQemuFromApi(vm *Vm) (config *ConfigQemu, err error) {
 }
 
 // Create parameters for each Nic device.
-func (c ConfigQemu) CreateNetParams(vmID int, params map[string]interface{}) error {
+func (c ConfigQemu) CreateNetParams(vmID int, params map[string]interface{}) {
 	for nicID, nicConfMap := range c.Net {
 
 		nicConfParam := VmDeviceParam{}
@@ -370,7 +373,7 @@ func (c ConfigQemu) CreateNetParams(vmID int, params map[string]interface{}) err
 		params[qemuNicName] = strings.Join(nicConfParam, ",")
 	}
 
-	return nil
+	return
 }
 
 // Create parameters for each disk.
@@ -378,7 +381,7 @@ func (c ConfigQemu) CreateDisksParams(
 	vmID int,
 	params map[string]interface{},
 	cloned bool,
-) error {
+) {
 	for diskID, diskConfMap := range c.Disk {
 
 		// skip the first disk for clones (may not always be right, but a template probably has at least 1 disk)
@@ -427,5 +430,5 @@ func (c ConfigQemu) CreateDisksParams(
 		params[qemuDiskName] = strings.Join(diskConfParam, ",")
 	}
 
-	return nil
+	return
 }

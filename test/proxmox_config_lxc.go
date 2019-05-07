@@ -1,8 +1,8 @@
 package test
 
 import (
-	"github.com/3coma3/proxmox-api-go/proxmox"
 	"encoding/json"
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"os"
 )
 
@@ -60,7 +60,8 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.VmDevice{}
-		return premap, config.CreateNetParams(options.VMid, premap)
+		config.CreateNetParams(options.VMid, premap)
+		return premap, nil
 	}
 
 	testActions["configlxc_creatempparams"] = func(options *TOptions) (response interface{}, err error) {
@@ -81,7 +82,7 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.VmDevice{}
-		return premap, config.CreateMpParams(options.VMid, premap, false)
+		config.CreateDisksParams(options.VMid, premap, false)
+		return premap, nil
 	}
-
 }

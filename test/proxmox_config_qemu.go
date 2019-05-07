@@ -45,7 +45,7 @@ func init() {
 		return proxmox.NewConfigQemuFromApi(v)
 	}
 
-	testActions["configqemu_createnetparams"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["configqemu_createnetparams"] = func(options *TOptions) (interface{}, error) {
 		// only the json for the network is needed on stdin
 		inputparams := proxmox.VmDevice{}
 
@@ -63,7 +63,8 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.VmDevice{}
-		return premap, config.CreateNetParams(options.VMid, premap)
+		config.CreateNetParams(options.VMid, premap)
+		return premap, nil
 	}
 
 	testActions["configqemu_createdisksparams"] = func(options *TOptions) (response interface{}, err error) {
@@ -84,7 +85,8 @@ func init() {
 		// a device name and a configuration with two levels of subelements
 		// this method rewrites heavily the input parameters
 		premap := proxmox.VmDevice{}
-		return premap, config.CreateDisksParams(options.VMid, premap, false)
+		config.CreateDisksParams(options.VMid, premap, false)
+		return premap, nil
 	}
 
 }

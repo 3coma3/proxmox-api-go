@@ -52,7 +52,7 @@ func init() {
 
 	testActions["vm_createtemplate"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
-		return nil, vm.CreateTemplate()
+		return vm.CreateTemplate()
 	}
 
 	testActions["vm_clone"] = func(options *TOptions) (response interface{}, err error) {

@@ -70,15 +70,15 @@ func (config ConfigLxc) CreateVm(vm *Vm) (err error) {
 	}
 
 	// Create mountpoints config.
-	config.CreateMpParams(vm.id, params, false)
+	config.CreateDisksParams(vm.id, params, false)
 
 	// Create networks config.
 	config.CreateNetParams(vm.id, params)
 
-	exitStatus, err := vm.Create(params)
-	if err != nil {
-		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
+	if exitStatus, err := vm.Create(params); err != nil {
+		err = fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
+
 	return
 }
 
@@ -125,13 +125,14 @@ func (config ConfigLxc) UpdateConfig(vm *Vm) (err error) {
 	params["tty"] = config.Tty
 
 	// Create mountpoints config.
-	config.CreateMpParams(vm.id, params, true)
+	config.CreateDisksParams(vm.id, params, true)
 
 	// Create networks config.
 	config.CreateNetParams(vm.id, params)
 
 	_, err = vm.SetConfig(params)
-	return err
+
+	return
 }
 
 // this factory returns a new struct with the members set to defaults
@@ -169,11 +170,10 @@ func NewConfigLxcFromJson(io io.Reader, bare bool) (config *ConfigLxc, err error
 		config = NewConfigLxc()
 	}
 
-	err = json.NewDecoder(io).Decode(config)
-	if err != nil {
+	if err = json.NewDecoder(io).Decode(config); err != nil {
 		log.Fatal(err)
-		return nil, err
 	}
+
 	return
 }
 
@@ -182,10 +182,9 @@ func NewConfigLxcFromApi(vm *Vm) (config *ConfigLxc, err error) {
 
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
-		vmConfig, err = vm.GetConfig()
-		if err != nil {
+		if vmConfig, err = vm.GetConfig(); err != nil {
 			log.Fatal(err)
-			return nil, err
+			return
 		}
 		// this can happen:
 		// {"data":{"lock":"clone","digest":"eb54fb9d9f120ba0c3bdf694f73b10002c375c38","description":" qmclone temporary file\n"}})
@@ -310,11 +309,11 @@ func NewConfigLxcFromApi(vm *Vm) (config *ConfigLxc, err error) {
 		}
 	}
 
-	return config, nil
+	return
 }
 
 // Create parameters for each Nic device.
-func (c ConfigLxc) CreateNetParams(vmID int, params map[string]interface{}) error {
+func (c ConfigLxc) CreateNetParams(vmID int, params map[string]interface{}) {
 	for nicID, nicConfMap := range c.Net {
 
 		nicConfParam := VmDeviceParam{}
@@ -358,15 +357,15 @@ func (c ConfigLxc) CreateNetParams(vmID int, params map[string]interface{}) erro
 		params[lxcNicName] = strings.Join(nicConfParam, ",")
 	}
 
-	return nil
+	return
 }
 
 // Create parameters for each mountpoint
-func (c ConfigLxc) CreateMpParams(
+func (c ConfigLxc) CreateDisksParams(
 	vmID int,
 	params map[string]interface{},
 	cloned bool,
-) error {
+) {
 	diskConfStr := func(diskID int, diskConfMap VmDevice) string {
 		diskConfParam := VmDeviceParam{}
 
@@ -415,5 +414,5 @@ func (c ConfigLxc) CreateMpParams(
 		params["mp"+strconv.Itoa(diskID)] = diskConfStr(diskID+2, diskConfMap)
 	}
 
-	return nil
+	return
 }

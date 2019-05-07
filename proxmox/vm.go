@@ -45,8 +45,7 @@ func (vm *Vm) SetType(t string) {
 
 func (vm *Vm) Check() (err error) {
 	if vm.node == nil || vm.vmtype == "" {
-		vmInfo, err := vm.GetInfo()
-		if err == nil {
+		if vmInfo, err := vm.GetInfo(); err == nil {
 			vm.vmtype = vmInfo["type"].(string)
 			vm.node = NewNode(vmInfo["node"].(string))
 		}
@@ -73,44 +72,51 @@ func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
 
 // factory by name
 func FindVm(name string) (vm *Vm, err error) {
-	resp, err := GetVmList()
-	vms := resp["data"].([]interface{})
-	for i := range vms {
-		vmInfo := vms[i].(map[string]interface{})
-		if vmInfo["name"] != nil && vmInfo["name"].(string) == name {
-			vm = NewVm(int(vmInfo["vmid"].(float64)))
-			vm.node = NewNode(vmInfo["node"].(string))
-			vm.vmtype = vmInfo["type"].(string)
-			return
+	var resp map[string]interface{}
+	if resp, err = GetVmList(); err == nil {
+		vms := resp["data"].([]interface{})
+		for i := range vms {
+			vmInfo := vms[i].(map[string]interface{})
+			if vmInfo["name"] != nil && vmInfo["name"].(string) == name {
+				vm = NewVm(int(vmInfo["vmid"].(float64)))
+				vm.node = NewNode(vmInfo["node"].(string))
+				vm.vmtype = vmInfo["type"].(string)
+				return
+			}
 		}
 	}
+
 	return nil, errors.New(fmt.Sprintf("Vm '%s' not found", name))
 }
 
 func GetMaxVmId() (max int, err error) {
-	resp, err := GetVmList()
-	vms := resp["data"].([]interface{})
-	max = 0
-	for vmii := range vms {
-		vm := vms[vmii].(map[string]interface{})
-		vmid := int(vm["vmid"].(float64))
-		if vmid > max {
-			max = vmid
+	if resp, err := GetVmList(); err == nil {
+		vms := resp["data"].([]interface{})
+		max = 0
+		for vmii := range vms {
+			vm := vms[vmii].(map[string]interface{})
+			if vmid := int(vm["vmid"].(float64)); vmid > max {
+				max = vmid
+			}
 		}
 	}
+
 	return
 }
 
 func GetNextVmId(currentId int) (nextId int, err error) {
-	var data map[string]interface{}
-	var url string
+	var (
+		data map[string]interface{}
+		url  string
+	)
+
 	if currentId >= 100 {
 		url = fmt.Sprintf("/cluster/nextid?vmid=%d", currentId)
 	} else {
 		url = "/cluster/nextid"
 	}
-	_, err = GetClient().session.GetJSON(url, nil, nil, &data)
-	if err == nil {
+
+	if _, err = GetClient().session.GetJSON(url, nil, nil, &data); err == nil {
 		if data["errors"] != nil {
 			if currentId >= 100 {
 				return GetNextVmId(currentId + 1)
@@ -120,6 +126,7 @@ func GetNextVmId(currentId int) (nextId int, err error) {
 		}
 		nextId, err = strconv.Atoi(data["data"].(string))
 	}
+
 	return
 }
 
@@ -148,6 +155,7 @@ func (vm *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err er
 	if err != nil {
 		return "", err
 	}
+
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 
 	// Delete VM disks if the VM didn't create.
@@ -161,80 +169,77 @@ func (vm *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err er
 	return
 }
 
-func (vm *Vm) CreateTemplate() error {
-	err := vm.Check()
-	if err != nil {
-		return err
+func (vm *Vm) CreateTemplate() (exitStatus interface{}, err error) {
+	if err = vm.Check(); err != nil {
+		return
 	}
 
-	reqbody := ParamsToBody(map[string]interface{}{"experimental": true})
 	url := fmt.Sprintf("/nodes/%s/%s/%d/template", vm.node.name, vm.vmtype, vm.id)
-	_, err = GetClient().session.Post(url, nil, nil, &reqbody)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return GetClient().session.Post(url, nil, nil, nil)
 }
 
 func (vm *Vm) Clone(newid int, cloneParams map[string]interface{}) (exitStatus interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return nil, err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
-	cloneParams["newid"] = newid
-	reqbody := ParamsToBody(cloneParams)
-	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vm.node.name, vm.vmtype, vm.id)
-	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return nil, err
-		}
-		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+	if newid > 0 {
+		cloneParams["newid"] = newid
 	}
+
+	reqbody := ParamsToBody(cloneParams)
+
+	url := fmt.Sprintf("/nodes/%s/%s/%d/clone", vm.node.name, vm.vmtype, vm.id)
+	if resp, err := GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			return GetClient().WaitForCompletion(taskResponse)
+		}
+	}
+
 	return
 }
 
 func (vm *Vm) Delete() (exitStatus string, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
+
 	url := fmt.Sprintf("/nodes/%s/%s/%d", vm.node.name, vm.vmtype, vm.id)
 	var taskResponse map[string]interface{}
-	_, err = GetClient().session.RequestJSON("DELETE", url, nil, nil, nil, &taskResponse)
-	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+	if _, err = GetClient().session.RequestJSON("DELETE", url, nil, nil, nil, &taskResponse); err == nil {
+		return GetClient().WaitForCompletion(taskResponse)
+	}
+
 	return
 }
 
 func (vm *Vm) GetConfig() (config map[string]interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return nil, err
+	if err = vm.Check(); err != nil {
+		return
 	}
-	var data map[string]interface{}
+
 	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node.name, vm.vmtype, vm.id)
-	err = GetClient().GetJsonRetryable(url, &data, 3)
-	if err != nil {
-		return nil, err
+	var resp map[string]interface{}
+	if err = GetClient().GetJsonRetryable(url, &resp, 3); err == nil {
+		if resp["data"] == nil {
+			return nil, errors.New("Vm config could not be read")
+		}
+		config = resp["data"].(map[string]interface{})
 	}
-	if data["data"] == nil {
-		return nil, errors.New("Vm CONFIG not readable")
-	}
-	config = data["data"].(map[string]interface{})
+
 	return
 }
 
 func (vm *Vm) SetConfig(vmParams map[string]interface{}) (exitStatus interface{}, err error) {
+	if err = vm.Check(); err != nil {
+		return
+	}
+
 	reqbody := ParamsToBody(vmParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/config", vm.node.name, vm.vmtype, vm.id)
-
 	var resp *http.Response
 
-	// Use the POST async API to update qemu VMs, PUT (only method available)
-	// for CTs
+	// Use the POST async API to update qemu VMs, PUT for CTs
 	if vm.vmtype == "qemu" {
 		resp, err = GetClient().session.Post(url, nil, nil, &reqbody)
 	} else {
@@ -242,37 +247,33 @@ func (vm *Vm) SetConfig(vmParams map[string]interface{}) (exitStatus interface{}
 	}
 
 	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return nil, err
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 		}
-		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	}
 	return
 }
 
 func (vm *Vm) GetStatus() (vmState map[string]interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return nil, err
+	if err = vm.Check(); err != nil {
+		return
 	}
-	var data map[string]interface{}
+
 	url := fmt.Sprintf("/nodes/%s/%s/%d/status/current", vm.node.name, vm.vmtype, vm.id)
-	err = GetClient().GetJsonRetryable(url, &data, 3)
-	if err != nil {
-		return nil, err
+	var resp map[string]interface{}
+	if err = GetClient().GetJsonRetryable(url, &resp, 3); err == nil {
+		if resp["data"] == nil {
+			return nil, errors.New("Vm status could not be read")
+		}
+		vmState = resp["data"].(map[string]interface{})
 	}
-	if data["data"] == nil {
-		return nil, errors.New("Vm STATE not readable")
-	}
-	vmState = data["data"].(map[string]interface{})
+
 	return
 }
 
 func (vm *Vm) SetStatus(setStatus string) (exitStatus string, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	url := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", vm.node.name, vm.vmtype, vm.id, setStatus)
@@ -286,6 +287,7 @@ func (vm *Vm) SetStatus(setStatus string) (exitStatus string, err error) {
 			return
 		}
 	}
+
 	return
 }
 
@@ -315,72 +317,69 @@ func (vm *Vm) Shutdown() (exitStatus string, err error) {
 
 // Useful waiting for ISO install to complete
 func (vm *Vm) WaitForShutdown() (err error) {
+	if err = vm.Check(); err != nil {
+		return
+	}
+
 	for ii := 0; ii < 100; ii++ {
-		vmState, err := vm.GetStatus()
-		if err != nil {
+		if vmStatus, err := vm.GetStatus(); err != nil {
 			log.Print("Wait error:")
 			log.Println(err)
-		} else if vmState["status"] == "stopped" {
+		} else if vmStatus["status"] == "stopped" {
 			return nil
 		}
 		time.Sleep(5 * time.Second)
 	}
+
 	return errors.New("Not shutdown within wait time")
 }
 
 func (vm *Vm) Migrate(migrateParams map[string]interface{}) (exitStatus interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return nil, err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	reqbody := ParamsToBody(migrateParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/migrate", vm.node.name, vm.vmtype, vm.id)
-	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return "", err
+	if resp, err := GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 		}
-		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	}
+
 	return
 }
 
 func (vm *Vm) GetSnapshotList() (list map[string]interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return nil, err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/", vm.node.name, vm.vmtype, vm.id)
 	err = GetClient().GetJsonRetryable(url, &list, 3)
+
 	return
 }
 
 func (vm *Vm) CreateSnapshot(snapParams map[string]interface{}) (exitStatus string, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	reqbody := ParamsToBody(snapParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot", vm.node.name, vm.vmtype, vm.id)
-	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return "", err
+	if resp, err := GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 		}
-		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	}
+
 	return
 }
 
 func (vm *Vm) DeleteSnapshot(snapName string) (exitStatus interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s", vm.node.name, vm.vmtype, vm.id, snapName)
@@ -388,49 +387,46 @@ func (vm *Vm) DeleteSnapshot(snapName string) (exitStatus interface{}, err error
 }
 
 func (vm *Vm) Rollback(snapName string) (exitStatus string, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
+
 	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot/%s/rollback", vm.node.name, vm.vmtype, vm.id, snapName)
 	var taskResponse map[string]interface{}
-	_, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse)
-	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+	if _, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse); err == nil {
+		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+	}
+
 	return
 }
 
 func (vm *Vm) CreateBackup(bkpParams map[string]interface{}) (exitStatus string, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	bkpParams["vmid"] = vm.id
-
 	reqbody := ParamsToBody(bkpParams)
-
 	url := fmt.Sprintf("/nodes/%s/vzdump", vm.node.name)
-	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return "", err
+	if resp, err := GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 		}
-		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	}
+
 	return
 }
 
 // createDisks - Make disks parameters and create all VM disks on host node.
 // TODO: add autodetection of existant volumes and act accordingly
 // TODO: merge sections for VM and CT volumes
-func (vm *Vm) createDisks(vmParams map[string]interface{}) (disks []string, err error) {
-	var (
-		fullDiskName string
-		createdDisks []string
-	)
+func (vm *Vm) createDisks(vmParams map[string]interface{}) (createdDisks []string, err error) {
+	if err = vm.Check(); err != nil {
+		return
+	}
 
 	for deviceName, deviceConf := range vmParams {
+		var fullDiskName string
 		diskParams := map[string]interface{}{}
 
 		// VM disks
@@ -463,22 +459,20 @@ func (vm *Vm) createDisks(vmParams map[string]interface{}) (disks []string, err 
 		}
 
 		if len(diskParams) > 0 {
-			err = vm.node.CreateVolume(fullDiskName, diskParams)
-			if err != nil {
-				return createdDisks, err
-			} else {
+			if err = vm.node.CreateVolume(fullDiskName, diskParams); err == nil {
 				createdDisks = append(createdDisks, fullDiskName)
+				continue
 			}
+			break
 		}
 	}
 
-	return createdDisks, nil
+	return
 }
 
 func (vm *Vm) MoveDisk(moveParams map[string]interface{}) (exitStatus interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	reqbody := ParamsToBody(moveParams)
@@ -489,14 +483,12 @@ func (vm *Vm) MoveDisk(moveParams map[string]interface{}) (exitStatus interface{
 		url += "volume"
 	}
 
-	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return nil, err
+	if resp, err := GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 		}
-		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	}
+
 	return
 }
 
@@ -504,169 +496,173 @@ func (vm *Vm) MoveDisk(moveParams map[string]interface{}) (exitStatus interface{
 // grow the volume by that many GB. If using an absolute size this has to be
 // larger than the current size (shrinking is not supported by PVE)
 func (vm *Vm) ResizeDisk(disk string, sizeGB string) (exitStatus interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	reqbody := ParamsToBody(map[string]interface{}{"disk": disk, "size": sizeGB})
 	url := fmt.Sprintf("/nodes/%s/%s/%d/resize", vm.node.name, vm.vmtype, vm.id)
-	resp, err := GetClient().session.Put(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return nil, err
+	if resp, err := GetClient().session.Put(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 		}
-		exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	}
+
 	return
 }
 
 // By default the VM disks are deteled when the VM is deleted,
 // so mainly this is used to delete the disks in case VM creation didn't complete.
 func (vm *Vm) deleteDisks(disks []string) (err error) {
+	if err = vm.Check(); err != nil {
+		return
+	}
+
 	for _, fullDiskName := range disks {
 		err = vm.node.DeleteVolume(fullDiskName)
 	}
+
 	return nil
 }
 
 func (vm *Vm) GetSpiceProxy() (vmSpiceProxy map[string]interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return nil, err
+	if err = vm.Check(); err != nil {
+		return
 	}
-	var data map[string]interface{}
+
+	var resp map[string]interface{}
 	url := fmt.Sprintf("/nodes/%s/%s/%d/spiceproxy", vm.node.name, vm.vmtype, vm.id)
-	_, err = GetClient().session.PostJSON(url, nil, nil, nil, &data)
-	if err != nil {
-		return nil, err
+	if _, err = GetClient().session.PostJSON(url, nil, nil, nil, &resp); err == nil {
+		if resp["data"] == nil {
+			return nil, errors.New("Vm Spice Proxy could not be read")
+		}
+		vmSpiceProxy = resp["data"].(map[string]interface{})
 	}
-	if data["data"] == nil {
-		return nil, errors.New("Vm SpiceProxy not readable")
-	}
-	vmSpiceProxy = data["data"].(map[string]interface{})
+
 	return
 }
 
 func (vm *Vm) MonitorCmd(command string) (monitorRes map[string]interface{}, err error) {
-	err = vm.Check()
-	if err != nil {
-		return nil, err
+	if err = vm.Check(); err != nil {
+		return
 	}
+
 	reqbody := ParamsToBody(map[string]interface{}{"command": command})
 	url := fmt.Sprintf("/nodes/%s/%s/%d/monitor", vm.node.name, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	monitorRes, err = ResponseJSON(resp)
+
 	return
 }
 
 func (vm *Vm) SendKeysString(keys string) (err error) {
-	vmState, err := vm.GetStatus()
-	if err != nil {
-		return err
+	if err = vm.Check(); err != nil {
+		return
 	}
-	if vmState["status"] == "stopped" {
-		return errors.New("VM must be running first")
-	}
-	for _, r := range keys {
-		c := string(r)
-		lower := strings.ToLower(c)
-		if c != lower {
-			c = "shift-" + lower
-		} else {
-			switch c {
-			case "!":
-				c = "shift-1"
-			case "@":
-				c = "shift-2"
-			case "#":
-				c = "shift-3"
-			case "$":
-				c = "shift-4"
-			case "%%":
-				c = "shift-5"
-			case "^":
-				c = "shift-6"
-			case "&":
-				c = "shift-7"
-			case "*":
-				c = "shift-8"
-			case "(":
-				c = "shift-9"
-			case ")":
-				c = "shift-0"
-			case "_":
-				c = "shift-minus"
-			case "+":
-				c = "shift-equal"
-			case " ":
-				c = "spc"
-			case "/":
-				c = "slash"
-			case "\\":
-				c = "backslash"
-			case ",":
-				c = "comma"
-			case "-":
-				c = "minus"
-			case "=":
-				c = "equal"
-			case ".":
-				c = "dot"
-			case "?":
-				c = "shift-slash"
+
+	if vmStatus, err := vm.GetStatus(); err == nil {
+		if vmStatus["status"] == "stopped" {
+			err = errors.New("VM must be running first")
+		}
+	} else {
+
+		for _, r := range keys {
+			c := string(r)
+			lower := strings.ToLower(c)
+			if c != lower {
+				c = "shift-" + lower
+			} else {
+				switch c {
+				case "!":
+					c = "shift-1"
+				case "@":
+					c = "shift-2"
+				case "#":
+					c = "shift-3"
+				case "$":
+					c = "shift-4"
+				case "%%":
+					c = "shift-5"
+				case "^":
+					c = "shift-6"
+				case "&":
+					c = "shift-7"
+				case "*":
+					c = "shift-8"
+				case "(":
+					c = "shift-9"
+				case ")":
+					c = "shift-0"
+				case "_":
+					c = "shift-minus"
+				case "+":
+					c = "shift-equal"
+				case " ":
+					c = "spc"
+				case "/":
+					c = "slash"
+				case "\\":
+					c = "backslash"
+				case ",":
+					c = "comma"
+				case "-":
+					c = "minus"
+				case "=":
+					c = "equal"
+				case ".":
+					c = "dot"
+				case "?":
+					c = "shift-slash"
+				}
 			}
+
+			if _, err = vm.MonitorCmd("sendkey " + c); err != nil {
+				break
+			}
+
+			time.Sleep(100)
 		}
-		_, err = vm.MonitorCmd("sendkey " + c)
-		if err != nil {
-			return err
-		}
-		time.Sleep(100)
 	}
-	return nil
+
+	return
 }
 
 // This is because proxmox create/config API won't let us make usernet devices
 func (vm *Vm) SshForwardUsernet() (sshPort string, err error) {
-	vmState, err := vm.GetStatus()
-	if err != nil {
-		return "", err
+	if err = vm.Check(); err != nil {
+		return
 	}
-	if vmState["status"] == "stopped" {
-		return "", errors.New("VM must be running first")
+
+	if vmStatus, err := vm.GetStatus(); err == nil {
+		if vmStatus["status"] == "stopped" {
+			err = errors.New("VM must be running first")
+		}
+	} else {
+		sshPort = strconv.Itoa(vm.Id() + 22000)
+		if _, err = vm.MonitorCmd("netdev_add user,id=net1,hostfwd=tcp::" + sshPort + "-:22"); err == nil {
+			_, err = vm.MonitorCmd("device_add virtio-net-pci,id=net1,netdev=net1,addr=0x13")
+		}
 	}
-	sshPort = strconv.Itoa(vm.Id() + 22000)
-	_, err = vm.MonitorCmd("netdev_add user,id=net1,hostfwd=tcp::" + sshPort + "-:22")
-	if err != nil {
-		return "", err
-	}
-	_, err = vm.MonitorCmd("device_add virtio-net-pci,id=net1,netdev=net1,addr=0x13")
-	if err != nil {
-		return "", err
-	}
+
 	return
 }
 
 // device_del net1
 // netdev_del net1
 func (vm *Vm) RemoveSshForwardUsernet() (err error) {
-	vmState, err := vm.GetStatus()
-	if err != nil {
-		return err
+	if err = vm.Check(); err != nil {
+		return
 	}
-	if vmState["status"] == "stopped" {
-		return errors.New("VM must be running first")
+
+	if vmStatus, err := vm.GetStatus(); err == nil {
+		if vmStatus["status"] == "stopped" {
+			err = errors.New("VM must be running first")
+		}
+	} else if _, err = vm.MonitorCmd("device_del net1"); err == nil {
+		_, err = vm.MonitorCmd("netdev_del net1")
 	}
-	_, err = vm.MonitorCmd("device_del net1")
-	if err != nil {
-		return err
-	}
-	_, err = vm.MonitorCmd("netdev_del net1")
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return
 }
 
 type AgentNetworkInterface struct {
@@ -676,7 +672,7 @@ type AgentNetworkInterface struct {
 	Statistics  map[string]int64
 }
 
-func (a *AgentNetworkInterface) UnmarshalJSON(b []byte) error {
+func (a *AgentNetworkInterface) UnmarshalJSON(b []byte) (err error) {
 	var intermediate struct {
 		HardwareAddress string `json:"hardware-address"`
 		IPAddresses     []struct {
@@ -687,37 +683,32 @@ func (a *AgentNetworkInterface) UnmarshalJSON(b []byte) error {
 		Name       string           `json:"name"`
 		Statistics map[string]int64 `json:"statistics"`
 	}
-	err := json.Unmarshal(b, &intermediate)
-	if err != nil {
-		return err
+
+	if err = json.Unmarshal(b, &intermediate); err == nil {
+		a.IPAddresses = make([]net.IP, len(intermediate.IPAddresses))
+		for idx, ip := range intermediate.IPAddresses {
+			a.IPAddresses[idx] = net.ParseIP(ip.IPAddress)
+			if a.IPAddresses[idx] == nil {
+				return fmt.Errorf("Could not parse %s as IP", ip.IPAddress)
+			}
+		}
+		a.MACAddress = intermediate.HardwareAddress
+		a.Name = intermediate.Name
+		a.Statistics = intermediate.Statistics
 	}
 
-	a.IPAddresses = make([]net.IP, len(intermediate.IPAddresses))
-	for idx, ip := range intermediate.IPAddresses {
-		a.IPAddresses[idx] = net.ParseIP(ip.IPAddress)
-		if a.IPAddresses[idx] == nil {
-			return fmt.Errorf("Could not parse %s as IP", ip.IPAddress)
-		}
-	}
-	a.MACAddress = intermediate.HardwareAddress
-	a.Name = intermediate.Name
-	a.Statistics = intermediate.Statistics
-	return nil
+	return
 }
 
-func (vm *Vm) GetAgentNetworkInterfaces() ([]AgentNetworkInterface, error) {
-	var ifs []AgentNetworkInterface
-	err := vm.Check()
-	if err != nil {
-		return nil, err
+func (vm *Vm) GetAgentNetworkInterfaces() (ifs []AgentNetworkInterface, err error) {
+	if err = vm.Check(); err != nil {
+		return
 	}
 
 	url := fmt.Sprintf("/nodes/%s/%s/%d/agent/%s", vm.node.name, vm.vmtype, vm.id, "network-get-interfaces")
-	resp, err := GetClient().session.Get(url, nil, nil)
-	if err != nil {
-		return nil, err
+	if resp, err := GetClient().session.Get(url, nil, nil); err == nil {
+		err = TypedResponse(resp, &ifs)
 	}
 
-	err = TypedResponse(resp, &ifs)
-	return ifs, err
+	return
 }
