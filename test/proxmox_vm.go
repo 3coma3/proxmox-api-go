@@ -1,12 +1,11 @@
 package test
 
 import (
-	"github.com/3coma3/proxmox-api-go/proxmox"
 	"encoding/json"
 	"errors"
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"log"
 	"os"
-	"strconv"
 )
 
 func init() {
@@ -261,16 +260,8 @@ func init() {
 
 	testActions["vm_resizedisk"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
-		vm.SetNode(proxmox.NewNode(options.Args[1]))
-		vm.SetType("qemu")
-		moreSizeGB, err := strconv.Atoi(options.Args[3])
-		failOnError(err)
-		return vm.ResizeDisk(options.Args[2], moreSizeGB)
+		return vm.ResizeDisk(options.Args[1], options.Args[2])
 	}
-
-	// TODO
-	testActions["vm_deletedisks"] = errNotImplemented
-	testActions["vm_getstorageandvolumename"] = errNotImplemented
 
 	testActions["vm_getspiceproxy"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)

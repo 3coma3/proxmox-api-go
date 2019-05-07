@@ -500,14 +500,16 @@ func (vm *Vm) MoveDisk(moveParams map[string]interface{}) (exitStatus interface{
 	return
 }
 
-func (vm *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, err error) {
+// sizeGB can be a number to set an absolute size, or a number preceded by + to
+// grow the volume by that many GB. If using an absolute size this has to be
+// larger than the current size (shrinking is not supported by PVE)
+func (vm *Vm) ResizeDisk(disk string, sizeGB string) (exitStatus interface{}, err error) {
 	err = vm.Check()
 	if err != nil {
 		return "", err
 	}
 
-	size := fmt.Sprintf("%d", moreSizeGB)
-	reqbody := ParamsToBody(map[string]interface{}{"disk": disk, "size": size})
+	reqbody := ParamsToBody(map[string]interface{}{"disk": disk, "size": sizeGB})
 	url := fmt.Sprintf("/nodes/%s/%s/%d/resize", vm.node.name, vm.vmtype, vm.id)
 	resp, err := GetClient().session.Put(url, nil, nil, &reqbody)
 	if err == nil {
