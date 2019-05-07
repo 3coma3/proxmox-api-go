@@ -21,16 +21,6 @@ type Client struct {
 	Password string
 }
 
-// TaskTimeout - default async task call timeout in seconds
-const TaskTimeout = 300
-
-// TaskStatusCheckInterval - time between async checks in seconds
-const TaskStatusCheckInterval = 2
-
-const exitStatusSuccess = "OK"
-
-var rxTaskNode = regexp.MustCompile("UPID:(.*?):")
-
 func NewClient(apiUrl string, hclient *http.Client, tls *tls.Config) (client *Client, err error) {
 	var sess *Session
 	sess, err = NewSession(apiUrl, hclient, tls)
@@ -70,6 +60,16 @@ func (c *Client) GetJsonRetryable(url string, data *map[string]interface{}, trie
 	}
 	return statErr
 }
+
+// TaskTimeout - default async task call timeout in seconds
+const TaskTimeout = 300
+
+// TaskStatusCheckInterval - time between async checks in seconds
+const TaskStatusCheckInterval = 2
+
+const exitStatusSuccess = "OK"
+
+var rxTaskNode = regexp.MustCompile("UPID:(.*?):")
 
 func (c *Client) GetTaskExitstatus(taskUpid string) (exitStatus interface{}, err error) {
 	node := rxTaskNode.FindStringSubmatch(taskUpid)[1]
