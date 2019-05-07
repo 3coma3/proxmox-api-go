@@ -54,26 +54,21 @@ func (node *Node) GetInfo() (nodeInfo map[string]interface{}, err error) {
 }
 
 // TODO: add autodetection of existant volumes and act accordingly
-func (node *Node) CreateVolume(fullDiskName string, diskParams map[string]interface{}) error {
+func (node *Node) CreateVolume(fullDiskName string, diskParams map[string]interface{}) (err error) {
 	storageName, volumeName := GetStorageAndVolumeName(fullDiskName, ":")
 	diskParams["filename"] = volumeName
 	reqbody := ParamsToBody(diskParams)
 
 	url := fmt.Sprintf("/nodes/%s/storage/%s/content", node.name, storageName)
-	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return err
+	if resp, err := GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err := ResponseJSON(resp); err == nil {
+			if diskName, containsData := taskResponse["data"]; !containsData || diskName != fullDiskName {
+				return errors.New(fmt.Sprintf("Cannot create VM disk %s", fullDiskName))
+			}
 		}
-		if diskName, containsData := taskResponse["data"]; !containsData || diskName != fullDiskName {
-			return errors.New(fmt.Sprintf("Cannot create VM disk %s", fullDiskName))
-		}
-	} else {
-		return err
 	}
 
-	return nil
+	return
 }
 
 func (node *Node) DeleteVolume(fullDiskName string) (err error) {

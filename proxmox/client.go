@@ -75,8 +75,7 @@ func (c *Client) GetTaskExitstatus(taskUpid string) (exitStatus interface{}, err
 	node := rxTaskNode.FindStringSubmatch(taskUpid)[1]
 	url := fmt.Sprintf("/nodes/%s/tasks/%s/status", node, taskUpid)
 	var data map[string]interface{}
-	_, err = c.session.GetJSON(url, nil, nil, &data)
-	if err == nil {
+	if _, err = c.session.GetJSON(url, nil, nil, &data); err == nil {
 		exitStatus = data["data"].(map[string]interface{})["exitstatus"]
 	}
 	if exitStatus != nil && exitStatus != exitStatusSuccess {
