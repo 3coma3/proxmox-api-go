@@ -123,54 +123,18 @@ func GetNextVmId(currentId int) (nextId int, err error) {
 	return
 }
 
-// Vm - virtual machine ref parts
-type Vm struct {
-	id     int
-	vmtype string
-	node   string
-}
-
-func (vm *Vm) SetNode(n string) {
-	vm.node = n
-	return
-}
-
-func (vm *Vm) SetType(t string) {
-	vm.vmtype = t
-	return
-}
-
-func (vm *Vm) Id() int {
-	return vm.id
-}
-
-func (vm *Vm) Node() string {
-	return vm.node
-}
-
-func NewVm(id int) *Vm {
-	return &Vm{id: id}
-}
-
-func (vm *Vm) Check() (err error) {
-	if vm.node == "" || vm.vmtype == "" {
-		_, err = vm.GetInfo()
-	}
-	return
-}
-
 func (vm *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err error) {
 	// Create VM disks first to ensure disks names.
-	createdDisks, createdDisksErr := createDisks(vm.node, vmParams)
+	createdDisks, createdDisksErr := vm.createDisks(vmParams)
 	if createdDisksErr != nil {
 		return "", createdDisksErr
 	}
 
 	// Then create the VM itself.
 	reqbody := ParamsToBody(vmParams)
-	url := fmt.Sprintf("/nodes/%s/%s", vm.node, vm.vmtype)
-	var resp *http.Response
-	resp, err = GetClient().session.Post(url, nil, nil, &reqbody)
+	url := fmt.Sprintf("/nodes/%s/%s", vm.node.name, vm.vmtype)
+
+	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
 	defer resp.Body.Close()
 	if err != nil {
 		// This might not work if we never got a body. We'll ignore errors in trying to read,
@@ -185,9 +149,10 @@ func (vm *Vm) Create(vmParams map[string]interface{}) (exitStatus string, err er
 		return "", err
 	}
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
+
 	// Delete VM disks if the VM didn't create.
 	if exitStatus != "OK" {
-		deleteDisksErr := vm.DeleteDisks(createdDisks)
+		deleteDisksErr := vm.deleteDisks(createdDisks)
 		if deleteDisksErr != nil {
 			return "", deleteDisksErr
 		}
@@ -456,64 +421,29 @@ func (vm *Vm) CreateBackup(bkpParams map[string]interface{}) (exitStatus string,
 	return
 }
 
-// CreateVMDisk - Create single disk for VM on host node.
-// TODO: add autodetection of existant volumes and act accordingly
-func CreateDisk(
-	nodeName string,
-	storageName string,
-	fullDiskName string,
-	diskParams map[string]interface{},
-) error {
-	reqbody := ParamsToBody(diskParams)
-	url := fmt.Sprintf("/nodes/%s/storage/%s/content", nodeName, storageName)
-	resp, err := GetClient().session.Post(url, nil, nil, &reqbody)
-	if err == nil {
-		taskResponse, err := ResponseJSON(resp)
-		if err != nil {
-			return err
-		}
-		if diskName, containsData := taskResponse["data"]; !containsData || diskName != fullDiskName {
-			return errors.New(fmt.Sprintf("Cannot create VM disk %s", fullDiskName))
-		}
-	} else {
-		return err
-	}
-
-	return nil
-}
-
-// createVMDisks - Make disks parameters and create all VM disks on host node.
+// createDisks - Make disks parameters and create all VM disks on host node.
 // TODO: add autodetection of existant volumes and act accordingly
 // TODO: merge sections for VM and CT volumes
-func createDisks(
-	node string,
-	vmParams map[string]interface{},
-) (disks []string, err error) {
+func (vm *Vm) createDisks(vmParams map[string]interface{}) (disks []string, err error) {
 	var (
-		storageName  string
-		volumeName   string
 		fullDiskName string
-		diskParams   map[string]interface{}
 		createdDisks []string
 	)
 
-	vmID := vmParams["vmid"].(int)
 	for deviceName, deviceConf := range vmParams {
-		diskParams = map[string]interface{}{}
+		diskParams := map[string]interface{}{}
 
 		// VM disks
 		rxStorageModels := `(ide|sata|scsi|virtio)\d+`
 		matched, _ := regexp.MatchString(rxStorageModels, deviceName)
 		if matched {
 			deviceConfMap := ParseConf(deviceConf.(string), ",", "=")
-			// This if condition to differentiate between `disk` and `cdrom`.
+			// exclude `cdrom`
 			if media, containsFile := deviceConfMap["media"]; containsFile && media == "disk" {
 				fullDiskName = deviceConfMap["file"].(string)
-				storageName, volumeName = getStorageAndVolumeName(fullDiskName, ":")
 				diskParams = map[string]interface{}{
-					"vmid":     vmID,
-					"filename": volumeName,
-					"size":     deviceConfMap["size"],
+					"vmid": vm.id,
+					"size": deviceConfMap["size"],
 				}
 			}
 		}
@@ -526,16 +456,14 @@ func createDisks(
 			deviceConfMap := ParseConf(deviceConf.(string), ",", "=")
 
 			fullDiskName = deviceConfMap["volume"].(string)
-			storageName, volumeName = getStorageAndVolumeName(fullDiskName, ":")
 			diskParams = map[string]interface{}{
-				"vmid":     vmID,
-				"filename": volumeName,
-				"size":     deviceConfMap["size"],
+				"vmid": vm.id,
+				"size": deviceConfMap["size"],
 			}
 		}
 
 		if len(diskParams) > 0 {
-			err := CreateDisk(node, storageName, fullDiskName, diskParams)
+			err = vm.node.CreateVolume(fullDiskName, diskParams)
 			if err != nil {
 				return createdDisks, err
 			} else {
@@ -592,19 +520,12 @@ func (vm *Vm) ResizeDisk(disk string, moreSizeGB int) (exitStatus interface{}, e
 	return
 }
 
-// DeleteDisks - Delete VM disks from host node.
 // By default the VM disks are deteled when the VM is deleted,
 // so mainly this is used to delete the disks in case VM creation didn't complete.
-func (vm *Vm) DeleteDisks(disks []string) error {
+func (vm *Vm) deleteDisks(disks []string) (err error) {
 	for _, fullDiskName := range disks {
-		storageName, volumeName := getStorageAndVolumeName(fullDiskName, ":")
-		url := fmt.Sprintf("/nodes/%s/storage/%s/content/%s", vm.node, storageName, volumeName)
-		_, err := GetClient().session.Post(url, nil, nil, nil)
-		if err != nil {
-			return err
-		}
+		err = vm.node.DeleteVolume(fullDiskName)
 	}
-
 	return nil
 }
 
