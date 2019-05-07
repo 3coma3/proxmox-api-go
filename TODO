@@ -1,4 +1,3 @@
-volume delete
 verify storage formats and backends
 reimplement sendkeysstring, add support for enter and other keys
 unify Config*.CreateVm and Config.*CloneVm, make them return the params map and have the action be managed by Vm.CreateVm/CloneVm
@@ -12,7 +11,4 @@ clean session / client (and/or migrate to resty)
 debug/param/logging code (or migrate to CLI lib), base CLI semantics on PVESH
 full test suite
 docs
-
-even later
-add structures and code for Nodes, Pools, Storage, and Cluster
-progress towards full coverage
+add structures and code for Pools, Storage, and Cluster, progress towards full coverage
