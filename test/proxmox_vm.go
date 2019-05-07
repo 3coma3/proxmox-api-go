@@ -1,28 +1,36 @@
 package test
 
 import (
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"encoding/json"
 	"errors"
-	"github.com/3coma3/proxmox-api-go/proxmox"
 	"log"
 	"os"
-	"regexp"
 	"strconv"
-	"strings"
 )
 
 func init() {
-	// getters and setters
 	// lean factories
-	testActions["vm_setnode"] = errNotImplemented
-	testActions["vm_setype"] = errNotImplemented
+	// getters and setters
+	testActions["vm_newm"] = errNotImplemented
 	testActions["vm_id"] = errNotImplemented
 	testActions["vm_node"] = errNotImplemented
-	testActions["vm_newm"] = errNotImplemented
+	testActions["vm_setnode"] = errNotImplemented
+	testActions["vm_setype"] = errNotImplemented
+
+	testActions["vm_check"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+		return nil, vm.Check()
+	}
 
 	testActions["vm_getvmlist"] = func(options *TOptions) (response interface{}, err error) {
 		_, _ = newClientAndVmr(options)
 		return proxmox.GetVmList()
+	}
+
+	testActions["vm_getinfo"] = func(options *TOptions) (response interface{}, err error) {
+		_, vm := newClientAndVmr(options)
+		return vm.GetInfo()
 	}
 
 	testActions["vm_findvm"] = func(options *TOptions) (response interface{}, err error) {
@@ -38,11 +46,6 @@ func init() {
 	testActions["vm_getnextvmid"] = func(options *TOptions) (response interface{}, err error) {
 		_, _ = newClientAndVmr(options)
 		return proxmox.GetNextVmId(options.VMid)
-	}
-
-	testActions["vm_check"] = func(options *TOptions) (response interface{}, err error) {
-		_, vm := newClientAndVmr(options)
-		return nil, vm.Check()
 	}
 
 	// moved to config*_createvm, as the action starts there
@@ -73,11 +76,6 @@ func init() {
 	testActions["vm_delete"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
 		return vm.Delete()
-	}
-
-	testActions["vm_getinfo"] = func(options *TOptions) (response interface{}, err error) {
-		_, vm := newClientAndVmr(options)
-		return vm.GetInfo()
 	}
 
 	testActions["vm_getconfig"] = func(options *TOptions) (response interface{}, err error) {

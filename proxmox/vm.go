@@ -14,24 +14,77 @@ import (
 	"time"
 )
 
+type Vm struct {
+	id     int
+	vmtype string
+	node   *Node
+}
+
+// base factory
+func NewVm(id int) *Vm {
+	return &Vm{id: id, node: nil, vmtype: ""}
+}
+
+func (vm *Vm) Id() int {
+	return vm.id
+}
+
+func (vm *Vm) Node() *Node {
+	return vm.node
+}
+
+func (vm *Vm) SetNode(n *Node) {
+	vm.node = n
+	return
+}
+
+func (vm *Vm) SetType(t string) {
+	vm.vmtype = t
+	return
+}
+
+func (vm *Vm) Check() (err error) {
+	if vm.node == nil || vm.vmtype == "" {
+		vmInfo, err := vm.GetInfo()
+		if err == nil {
+			vm.vmtype = vmInfo["type"].(string)
+			vm.node = NewNode(vmInfo["node"].(string))
+		}
+	}
+	return
+}
+
 func GetVmList() (list map[string]interface{}, err error) {
 	err = GetClient().GetJsonRetryable("/cluster/resources?type=vm", &list, 3)
 	return
 }
 
-func FindVm(vmName string) (vm *Vm, err error) {
+func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
 	resp, err := GetVmList()
 	vms := resp["data"].([]interface{})
-	for vmii := range vms {
-		vmMap := vms[vmii].(map[string]interface{})
-		if vmMap["name"] != nil && vmMap["name"].(string) == vmName {
-			vm = NewVm(int(vmMap["vmid"].(float64)))
-			vm.node = vmMap["node"].(string)
-			vm.vmtype = vmMap["type"].(string)
-			return vm, err
+	for i := range vms {
+		vmInfo = vms[i].(map[string]interface{})
+		if int(vmInfo["vmid"].(float64)) == vm.id {
+			return
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("Vm '%s' not found", vmName))
+	return nil, errors.New(fmt.Sprintf("Vm '%d' not found", vm.id))
+}
+
+// factory by name
+func FindVm(name string) (vm *Vm, err error) {
+	resp, err := GetVmList()
+	vms := resp["data"].([]interface{})
+	for i := range vms {
+		vmInfo := vms[i].(map[string]interface{})
+		if vmInfo["name"] != nil && vmInfo["name"].(string) == name {
+			vm = NewVm(int(vmInfo["vmid"].(float64)))
+			vm.node = NewNode(vmInfo["node"].(string))
+			vm.vmtype = vmInfo["type"].(string)
+			return
+		}
+	}
+	return nil, errors.New(fmt.Sprintf("Vm '%s' not found", name))
 }
 
 func GetMaxVmId() (max int, err error) {
@@ -189,20 +242,6 @@ func (vm *Vm) Delete() (exitStatus string, err error) {
 	_, err = GetClient().session.RequestJSON("DELETE", url, nil, nil, nil, &taskResponse)
 	exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 	return
-}
-
-func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
-	resp, err := GetVmList()
-	vms := resp["data"].([]interface{})
-	for i := range vms {
-		vminfo := vms[i].(map[string]interface{})
-		if int(vminfo["vmid"].(float64)) == vm.id {
-			vm.node = vminfo["node"].(string)
-			vm.vmtype = vminfo["type"].(string)
-			return
-		}
-	}
-	return nil, errors.New(fmt.Sprintf("Vm '%d' not found", vm.id))
 }
 
 func (vm *Vm) GetConfig() (config map[string]interface{}, err error) {
@@ -599,13 +638,6 @@ func (vm *Vm) MonitorCmd(command string) (monitorRes map[string]interface{}, err
 	return
 }
 
-type AgentNetworkInterface struct {
-	MACAddress  string
-	IPAddresses []net.IP
-	Name        string
-	Statistics  map[string]int64
-}
-
 func (vm *Vm) SendKeysString(keys string) (err error) {
 	vmState, err := vm.GetStatus()
 	if err != nil {
@@ -712,6 +744,13 @@ func (vm *Vm) RemoveSshForwardUsernet() (err error) {
 		return err
 	}
 	return nil
+}
+
+type AgentNetworkInterface struct {
+	MACAddress  string
+	IPAddresses []net.IP
+	Name        string
+	Statistics  map[string]int64
 }
 
 func (a *AgentNetworkInterface) UnmarshalJSON(b []byte) error {
