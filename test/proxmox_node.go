@@ -26,6 +26,11 @@ func init() {
 		return nil, proxmox.NewNode(options.Args[1]).Check()
 	}
 
+	testActions["node_getinfo"] = func(options *TOptions) (response interface{}, err error) {
+		_, _ = newClientAndVmr(options)
+		return proxmox.NewNode(options.Args[1]).GetInfo()
+	}
+
 	testActions["node_createvolume"] = func(options *TOptions) (response interface{}, err error) {
 		_, _ = newClientAndVmr(options)
 
