@@ -33,6 +33,10 @@ func (vm *Vm) Node() *Node {
 	return vm.node
 }
 
+func (vm *Vm) Type() string {
+	return vm.vmtype
+}
+
 func (vm *Vm) SetNode(n *Node) {
 	vm.node = n
 	return
@@ -44,8 +48,10 @@ func (vm *Vm) SetType(t string) {
 }
 
 func (vm *Vm) Check() (err error) {
+	var vmInfo map[string]interface{}
+
 	if vm.node == nil || vm.vmtype == "" {
-		if vmInfo, err := vm.GetInfo(); err == nil {
+		if vmInfo, err = vm.GetInfo(); err == nil {
 			vm.vmtype = vmInfo["type"].(string)
 			vm.node = NewNode(vmInfo["node"].(string))
 		}
@@ -59,7 +65,12 @@ func GetVmList() (list map[string]interface{}, err error) {
 }
 
 func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
-	resp, err := GetVmList()
+	var resp map[string]interface{}
+
+	if resp, err = GetVmList(); err != nil {
+		return
+	}
+
 	vms := resp["data"].([]interface{})
 	for i := range vms {
 		vmInfo = vms[i].(map[string]interface{})

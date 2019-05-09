@@ -139,9 +139,7 @@ func (config ConfigQemu) UpdateConfig(vm *Vm) (err error) {
 func NewConfigQemuFromJson(io io.Reader) (config *ConfigQemu, err error) {
 	config = &ConfigQemu{}
 
-	if err = json.NewDecoder(io).Decode(config); err != nil {
-		log.Fatal(err)
-	} else {
+	if err = json.NewDecoder(io).Decode(config); err == nil {
 		log.Println(config)
 	}
 
@@ -161,7 +159,6 @@ func NewConfigQemuFromApi(vm *Vm) (config *ConfigQemu, err error) {
 
 	for ii := 0; ii < 3; ii++ {
 		if vmConfig, err = vm.GetConfig(); err != nil {
-			log.Fatal(err)
 			return nil, err
 		}
 

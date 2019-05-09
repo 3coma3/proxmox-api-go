@@ -1,12 +1,12 @@
 package test
 
 import (
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"bufio"
 	"crypto/tls"
-	"encoding/json"
+	// "encoding/json"
 	"errors"
 	"fmt"
-	"github.com/3coma3/proxmox-api-go/proxmox"
 	"log"
 	"net/url"
 	"os"
@@ -39,6 +39,11 @@ var (
 		return nil, errors.New("ERROR: the test '" + o.Action + "' is not implemented yet")
 	}
 )
+
+// this is so I don't have to type this awful type again and again when casting
+func toMSI(i interface{}) map[string]interface{} {
+	return i.(map[string]interface{})
+}
 
 // parses a string of the form "key1=value1,...keyN=valueN" to a value of
 // type url.Values, to send as a query string
@@ -97,7 +102,9 @@ func askUserPass(options *TOptions) {
 }
 
 // this is done repeatedly on most Client and ConfigQemu tests, abstracting here
-func newClientAndVmr(options *TOptions) (client *proxmox.Client, v *proxmox.Vm) {
+func newClientAndVmr(options *TOptions) (client *proxmox.Client, vm *proxmox.Vm) {
+	var err error
+
 	DebugMsg("New Client with Login")
 
 	tlsconf := &tls.Config{InsecureSkipVerify: true}
@@ -105,24 +112,30 @@ func newClientAndVmr(options *TOptions) (client *proxmox.Client, v *proxmox.Vm) 
 		tlsconf = nil
 	}
 
-	client, err := proxmox.NewClient(options.APIurl, nil, tlsconf)
-	failOnError(err)
+	if client, err = proxmox.NewClient(options.APIurl, nil, tlsconf); err != nil {
+		log.Fatal(err)
+	}
 
 	askUserPass(options)
-	failOnError(client.Login(options.APIuser, options.APIpass))
+
+	if err = client.Login(options.APIuser, options.APIpass); err != nil {
+		log.Fatal(err)
+	}
 
 	client.Set()
 
 	// Auto VMId and Vm struct initialization
 	if options.VMid <= 0 {
-		options.VMid, err = proxmox.GetNextVmId(0)
-		failOnError(err)
+		if options.VMid, err = proxmox.GetNextVmId(0); err != nil {
+			log.Fatal(err)
+		}
+
 	}
 
-	v = proxmox.NewVm(options.VMid)
+	vm = proxmox.NewVm(options.VMid)
 
 	DebugMsg("vmid is " + strconv.Itoa(options.VMid))
-	DebugMsg("v is " + fmt.Sprintf("%+v", v))
+	DebugMsg("vm is " + fmt.Sprintf("%+v", vm))
 
 	return
 }
@@ -131,67 +144,53 @@ func newClientAndVmr(options *TOptions) (client *proxmox.Client, v *proxmox.Vm) 
 // creation or the interface of Client, but need to be logged to PVEAPI to
 // run (mostly the Session tests)
 func newSessionWithLogin(options *TOptions) (session *proxmox.Session) {
+	var err error
+
 	tlsconf := &tls.Config{InsecureSkipVerify: true}
 	if !options.APIinsecure {
 		tlsconf = nil
 	}
 
-	session, err := proxmox.NewSession(options.APIurl, nil, tlsconf)
-	failOnError(err)
+	if session, err = proxmox.NewSession(options.APIurl, nil, tlsconf); err != nil {
+		log.Fatal(err)
+	}
 
 	askUserPass(options)
 
-	failOnError(session.Login(options.APIuser, options.APIpass))
+	if err = session.Login(options.APIuser, options.APIpass); err != nil {
+		log.Fatal(err)
+	}
+
 	return
 }
 
 // Run the test
-func Run(options *TOptions) bool {
-	// this is a "pseudo action", as it is not subject to lookups in the actions
-	// map, it is hardcoded here.
+func Run(options *TOptions) (err error) {
+	// this is a "pseudo action", not subject to lookups in the actions map
 	if options.Action == "listactions" {
 		for action := range testActions {
 			fmt.Println(action)
 		}
-		return true
+		return
 	}
 
-	var (
-		response interface{}
-		err      error
-	)
-
-	// lookup
-	if test, ok := testActions[options.Action]; ok {
-		// used by the proxmox pkg
+	if test, exists := testActions[options.Action]; exists {
 		proxmox.Debug = &Debug
 
-		response, err = test(options)
-		failOnError(err)
-
-		if response != nil {
-			response, _ := json.MarshalIndent(response, "", "  ")
-			DebugMsg("response is " + string(response))
-		} else {
-			DebugMsg("response is nil")
+		var response interface{}
+		if response, err = test(options); response != nil {
+			DebugMsg("Response is " + fmt.Sprintf("%v", response))
 		}
 
-		return true
+		return err
 	}
-	return failOnError(errors.New("FATAL: action '" + options.Action + "' does not exist"))
+
+	log.Fatal(errors.New("FATAL: action '" + options.Action + "' does not exist"))
+	return
 }
 
 func DebugMsg(msg string) {
 	if Debug {
 		log.Println("DEBUG: " + msg)
 	}
-}
-
-func failOnError(err error) bool {
-	if err != nil {
-		log.Fatal(err)
-		return false
-	}
-
-	return true
 }

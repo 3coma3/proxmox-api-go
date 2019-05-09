@@ -38,7 +38,9 @@ func init() {
 		inputparams := proxmox.VmDevice{}
 
 		// put whatever json is on stdin into a map[string]interface{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&inputparams))
+		if err = json.NewDecoder(os.Stdin).Decode(&inputparams); err != nil {
+			return
+		}
 
 		// put the map as QemuDisks[0] as if it were built by
 		// NewConfigQemuFromJson
@@ -88,7 +90,7 @@ func init() {
 				// information and checking the volume isn't there already
 				// after creating the disk the function fails
 				// TODO: investigate the failure
-				return nil, proxmox.NewNode(options.Args[1]).CreateVolume(fullDiskName, diskParams)
+				err = proxmox.NewNode(options.Args[1]).CreateVolume(fullDiskName, diskParams)
 			}
 		}
 

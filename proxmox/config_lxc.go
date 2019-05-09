@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net"
 	"net/url"
@@ -170,9 +169,7 @@ func NewConfigLxcFromJson(io io.Reader, bare bool) (config *ConfigLxc, err error
 		config = NewConfigLxc()
 	}
 
-	if err = json.NewDecoder(io).Decode(config); err != nil {
-		log.Fatal(err)
-	}
+	err = json.NewDecoder(io).Decode(config)
 
 	return
 }
@@ -183,8 +180,7 @@ func NewConfigLxcFromApi(vm *Vm) (config *ConfigLxc, err error) {
 	var vmConfig map[string]interface{}
 	for ii := 0; ii < 3; ii++ {
 		if vmConfig, err = vm.GetConfig(); err != nil {
-			log.Fatal(err)
-			return
+			return nil, err
 		}
 		// this can happen:
 		// {"data":{"lock":"clone","digest":"eb54fb9d9f120ba0c3bdf694f73b10002c375c38","description":" qmclone temporary file\n"}})

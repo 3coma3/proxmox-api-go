@@ -29,8 +29,7 @@ func GetNodeList() (list map[string]interface{}, err error) {
 // getInfo for nodes already looks up by name, so use that
 func FindNode(name string) (node *Node, err error) {
 	node = NewNode(name)
-	_, err = node.GetInfo()
-	if err != nil {
+	if _, err = node.GetInfo(); err != nil {
 		return nil, err
 	}
 	return
@@ -46,7 +45,7 @@ func (node *Node) GetInfo() (nodeInfo map[string]interface{}, err error) {
 	nodes := resp["data"].([]interface{})
 	for i := range nodes {
 		nodeInfo = nodes[i].(map[string]interface{})
-		if nodeInfo["name"].(string) == node.name {
+		if nodeInfo["node"].(string) == node.name {
 			return
 		}
 	}

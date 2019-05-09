@@ -3,7 +3,6 @@ package test
 import (
 	"github.com/3coma3/proxmox-api-go/proxmox"
 	"encoding/json"
-	"errors"
 	"os"
 )
 
@@ -57,17 +56,14 @@ func init() {
 		_, vm := newClientAndVmr(options)
 
 		cloneParams := map[string]interface{}{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&cloneParams))
-
-		DebugMsg("Looking for template: " + options.VMname)
-		sourceVm, err := proxmox.FindVm(options.VMname)
-
-		failOnError(err)
-		if sourceVm == nil {
-			return nil, errors.New("ERROR: can't find template")
+		if err = json.NewDecoder(os.Stdin).Decode(&cloneParams); err == nil {
+			DebugMsg("Looking for template: " + options.VMname)
+			if sourceVm, err := proxmox.FindVm(options.VMname); err == nil && sourceVm != nil {
+				return sourceVm.Clone(vm.Id(), cloneParams)
+			}
 		}
 
-		return sourceVm.Clone(vm.Id(), cloneParams)
+		return
 	}
 
 	testActions["vm_delete"] = func(options *TOptions) (response interface{}, err error) {
@@ -127,8 +123,10 @@ func init() {
 		_, v := newClientAndVmr(options)
 
 		// remember to use this to shutdown asynchronously
-		_, err = testActions["vm_monitorcmd"](options)
-		failOnError(err)
+		if _, err = testActions["vm_monitorcmd"](options); err != nil {
+			return
+		}
+
 		return nil, v.WaitForShutdown()
 	}
 
@@ -136,10 +134,11 @@ func init() {
 		_, vm := newClientAndVmr(options)
 
 		migrateParams := map[string]interface{}{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&migrateParams))
+		if err = json.NewDecoder(os.Stdin).Decode(&migrateParams); err != nil {
+			return
+		}
 
 		migrateParams["target"] = options.Args[1]
-
 		return vm.Migrate(migrateParams)
 	}
 
@@ -152,10 +151,11 @@ func init() {
 		_, vm := newClientAndVmr(options)
 
 		snapParams := map[string]interface{}{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&snapParams))
+		if err = json.NewDecoder(os.Stdin).Decode(&snapParams); err == nil {
+			return
+		}
 
 		snapParams["snapname"] = options.Args[1]
-
 		return vm.CreateSnapshot(snapParams)
 	}
 
@@ -173,15 +173,21 @@ func init() {
 		_, vm := newClientAndVmr(options)
 
 		bkpParams := map[string]interface{}{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&bkpParams))
+		if err = json.NewDecoder(os.Stdin).Decode(&bkpParams); err != nil {
+			return
+		}
 
 		return vm.CreateBackup(bkpParams)
 	}
 
 	testActions["vm_movedisk"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
+
 		moveParams := map[string]interface{}{}
-		failOnError(json.NewDecoder(os.Stdin).Decode(&moveParams))
+		if err = json.NewDecoder(os.Stdin).Decode(&moveParams); err != nil {
+			return
+		}
+
 		return vm.MoveDisk(moveParams)
 	}
 

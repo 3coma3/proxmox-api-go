@@ -238,15 +238,13 @@ func (s *Session) RequestJSON(
 	// 	return nil, err
 	// }
 
-	rbody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
+	if rbody, err := ioutil.ReadAll(resp.Body); err != nil {
 		return resp, errors.New("error reading response body")
-	}
-	if err = json.Unmarshal(rbody, &responseContainer); err != nil {
-		return resp, err
+	} else {
+		err = json.Unmarshal(rbody, &responseContainer)
 	}
 
-	return resp, nil
+	return
 }
 
 func (s *Session) Delete(

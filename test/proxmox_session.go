@@ -1,9 +1,9 @@
 package test
 
 import (
+	"github.com/3coma3/proxmox-api-go/proxmox"
 	"crypto/tls"
 	"errors"
-	"github.com/3coma3/proxmox-api-go/proxmox"
 	"net/url"
 	"os"
 	"strconv"
@@ -15,29 +15,31 @@ func init() {
 	testActions["session_newsession"] = errNotImplemented
 
 	testActions["session_paramstobody"] = func(options *TOptions) (response interface{}, err error) {
-		config, err := proxmox.NewConfigQemuFromJson(os.Stdin)
-		failOnError(err)
+		if config, err := proxmox.NewConfigQemuFromJson(os.Stdin); err == nil {
 
-		params := map[string]interface{}{
-			"vmid":        options.VMid,
-			"name":        config.Name,
-			"onboot":      config.Onboot,
-			"ide2":        config.QemuIso + ",media=cdrom",
-			"ostype":      config.QemuOs,
-			"sockets":     config.QemuSockets,
-			"cores":       config.QemuCores,
-			"cpu":         "host",
-			"memory":      config.Memory,
-			"description": config.Description,
+			params := map[string]interface{}{
+				"vmid":        options.VMid,
+				"name":        config.Name,
+				"onboot":      config.Onboot,
+				"ide2":        config.QemuIso + ",media=cdrom",
+				"ostype":      config.QemuOs,
+				"sockets":     config.QemuSockets,
+				"cores":       config.QemuCores,
+				"cpu":         "host",
+				"memory":      config.Memory,
+				"description": config.Description,
+			}
+
+			// Create disks config.
+			config.CreateDisksParams(options.VMid, params, false)
+
+			// Create networks config.
+			config.CreateNetParams(options.VMid, params)
+
+			response = proxmox.ParamsToBody(params)
 		}
 
-		// Create disks config.
-		config.CreateDisksParams(options.VMid, params, false)
-
-		// Create networks config.
-		config.CreateNetParams(options.VMid, params)
-
-		return proxmox.ParamsToBody(params), nil
+		return
 	}
 
 	// to test this we could use the "manual workflow"
@@ -45,10 +47,11 @@ func init() {
 		s := newSessionWithLogin(options)
 
 		// let's use GET requests to list some items in PVE
-		resp, err := s.Get("/nodes", nil, nil)
-		failOnError(err)
+		if resp, err := s.Get("/nodes", nil, nil); err == nil {
+			return proxmox.ResponseJSON(resp)
+		}
 
-		return proxmox.ResponseJSON(resp)
+		return
 	}
 
 	// to test this try first with valid tokens, then with invalid
@@ -59,27 +62,26 @@ func init() {
 			tlsconf = nil
 		}
 
-		s, err := proxmox.NewSession(options.APIurl, nil, tlsconf)
-		failOnError(err)
+		if s, err := proxmox.NewSession(options.APIurl, nil, tlsconf); err == nil {
+			DebugMsg("Attempting login with VALID tokens")
+			options.APIuser, options.APIpass = "", ""
+			askUserPass(options)
+			err = s.Login(strings.TrimSuffix(options.APIuser, "\n"), strings.TrimSuffix(options.APIpass, "\n"))
 
-		DebugMsg("Attempting login with VALID tokens")
-		options.APIuser, options.APIpass = "", ""
-		askUserPass(options)
-		err = s.Login(strings.TrimSuffix(options.APIuser, "\n"), strings.TrimSuffix(options.APIpass, "\n"))
+			// this login should succeed
+			if err != nil {
+				return "test failed", err
+			}
 
-		// this login should succeed
-		if err != nil {
-			return nil, err
-		}
+			DebugMsg("Attempting login with INVALID tokens")
+			options.APIuser, options.APIpass = "", ""
+			askUserPass(options)
+			err = s.Login(strings.TrimSuffix(options.APIuser, "\n"), strings.TrimSuffix(options.APIpass, "\n"))
 
-		DebugMsg("Attempting login with INVALID tokens")
-		options.APIuser, options.APIpass = "", ""
-		askUserPass(options)
-		err = s.Login(strings.TrimSuffix(options.APIuser, "\n"), strings.TrimSuffix(options.APIpass, "\n"))
-
-		// this login should fail
-		if err == nil {
-			return nil, errors.New("ERROR: A successful login has occurred with INVALID tokens")
+			// this login should fail
+			if err == nil {
+				return "test failed", errors.New("ERROR: login with INVALID tokens successful")
+			}
 		}
 
 		return "test OK", nil
@@ -124,7 +126,6 @@ func init() {
 		}
 
 		// this type is needed for json.Unmarshal to store a JSON value here
-		// (see golang docs)
 		respcontainer := new(map[string]interface{})
 
 		_, err = s.RequestJSON("GET", options.Args[1], params, &s.Headers, nil, respcontainer)
@@ -154,7 +155,6 @@ func init() {
 		}
 
 		// this type is needed for json.Unmarshal to store a JSON value here
-		// (see golang docs)
 		respcontainer := new(map[string]interface{})
 
 		_, err = s.GetJSON(options.Args[1], params, &s.Headers, respcontainer)
@@ -182,34 +182,37 @@ func init() {
 
 	// this needs an argument with the pool name
 	testActions["session_post"] = func(options *TOptions) (response interface{}, err error) {
-		s := newSessionWithLogin(options)
-
-		testpoolname := options.Args[1]
+		var (
+			resp         interface{}
+			found        bool
+			testpoolname = options.Args[1]
+			s            = newSessionWithLogin(options)
+		)
 
 		DebugMsg("Attempting to POST a new pool \"" + testpoolname + "\".")
 		reqbody := proxmox.ParamsToBody(map[string]interface{}{"poolid": testpoolname, "comment": "automatically created by test code"})
-		_, err = s.Post("/pools", nil, nil, &reqbody)
-		failOnError(err)
+		if _, err = s.Post("/pools", nil, nil, &reqbody); err == nil {
+			// present information about the created pool
+			_, _ = s.GetJSON("/pools", nil, &s.Headers, &resp)
 
-		// present information about the created pool
-		// resp, err := s.Get("/pools", nil, &s.Headers)
-		// failOnError(err)
+			if _, err = s.GetJSON("/pools", nil, &s.Headers, resp); err == nil {
+				for _, pool := range toMSI(resp)["data"].([]interface{}) {
+					if toMSI(pool)["poolid"].(string) == testpoolname {
+						response = pool
+						found = true
+						break
+					}
+				}
+			}
 
-		// var found bool
-		// for _, pool := range proxmox.ResponseJSON(resp)["data"].([]interface{}) {
-		// 	if pool.(map[string]interface{})["poolid"].(string) == testpoolname {
-		// 		found = true
-		// 		break
-		// 	}
-		// }
+			if !found {
+				err = errors.New("Couldn't find that the pool was created")
+			} else {
+				DebugMsg("Found the pool \"" + testpoolname + "\" just created.")
+			}
+		}
 
-		// if !found {
-		// 	return nil, errors.New("Couldn't create the test pool")
-		// }
-
-		DebugMsg("Found the pool \"" + testpoolname + "\" just created.")
-
-		return "test OK", nil
+		return
 	}
 
 	// the only difference with the session_post test is the auto
@@ -218,73 +221,79 @@ func init() {
 
 	// this needs an argument with the pool name and existing -vmid to add
 	testActions["session_put"] = func(options *TOptions) (response interface{}, err error) {
-		s := newSessionWithLogin(options)
+		var (
+			resp         interface{}
+			found        bool
+			testpoolname = options.Args[1]
+			s            = newSessionWithLogin(options)
+		)
 
-		testpoolname := options.Args[1]
+		_, vm := newClientAndVmr(options)
+		if err = vm.Check(); err != nil {
+			return
+		}
 
-		// present information about the created pool
-		// resp, err := s.Get("/pools", nil, &s.Headers)
-		// failOnError(err)
+		if _, err = s.GetJSON("/pools", nil, &s.Headers, &resp); err != nil {
+			return
+		}
 
-		// var found bool
-		// for _, pool := range proxmox.ResponseJSON(resp)["data"].([]interface{}) {
-		// 	if pool.(map[string]interface{})["poolid"].(string) == testpoolname {
-		// 		found = true
-		// 		break
-		// 	}
-		// }
+		for _, pool := range toMSI(resp)["data"].([]interface{}) {
+			if toMSI(pool)["poolid"].(string) == testpoolname {
+				found = true
+				break
+			}
+		}
 
-		// if !found {
-		// 	return nil, errors.New("Couldn't find the pool " + strconv.Itoa(options.VMid))
-		// }
-
-		DebugMsg("Found the pool \"" + testpoolname + "\" just created.")
+		if !found {
+			err = errors.New("Couldn't find that the pool exists")
+			return
+		}
+		DebugMsg("Found the pool \"" + testpoolname + "\"")
 
 		DebugMsg("Attempting to add the VM " + strconv.Itoa(options.VMid) + " to the pool " + testpoolname)
-
 		reqbody := proxmox.ParamsToBody(map[string]interface{}{"vms": strconv.Itoa(options.VMid)})
-		_, err = s.Put("/pools/"+testpoolname, nil, nil, &reqbody)
-		failOnError(err)
+		if _, err = s.Put("/pools/"+testpoolname, nil, nil, &reqbody); err != nil {
+			return
+		}
 
 		// present information about the pool modification
-		// resp, err = s.Get("/pools/"+testpoolname, nil, &s.Headers)
-		// failOnError(err)
+		if _, err = s.GetJSON("/pools/"+testpoolname, nil, &s.Headers, &resp); err == nil {
+			found = false
+			for _, member := range toMSI(toMSI(resp)["data"])["members"].([]interface{}) {
+				if toMSI(member)["id"].(string) == vm.Type()+"/"+strconv.Itoa(options.VMid) {
+					found = true
+					break
+				}
+			}
 
-		// found = false
-		// for _, member := range proxmox.ResponseJSON(resp)["data"].(map[string]interface{})["members"].([]interface{}) {
-		// 	if member.(map[string]interface{})["id"].(string) == "qemu/"+strconv.Itoa(options.VMid) {
-		// 		found = true
-		// 		break
-		// 	}
-		// }
-
-		// if !found {
-		// 	return nil, errors.New("Couldn't create the test pool")
-		// }
-
+			if !found {
+				err = errors.New("Couldn't verify the VM addition")
+				return
+			}
+		}
 		DebugMsg("Found the VM " + strconv.Itoa(options.VMid) + " in the pool " + testpoolname)
 
 		DebugMsg("Attempting to remove the VM " + strconv.Itoa(options.VMid) + " from the pool " + testpoolname)
-
 		reqbody = proxmox.ParamsToBody(map[string]interface{}{"vms": strconv.Itoa(options.VMid), "delete": true})
-		_, err = s.Put("/pools/"+testpoolname, nil, nil, &reqbody)
-		failOnError(err)
+		if _, err = s.Put("/pools/"+testpoolname, nil, nil, &reqbody); err != nil {
+			return
+		}
 
 		// present information about the pool modification
-		// resp, err = s.Get("/pools/"+testpoolname, nil, &s.Headers)
-		// failOnError(err)
+		if _, err = s.GetJSON("/pools/"+testpoolname, nil, &s.Headers, &resp); err == nil {
+			found = false
+			for _, member := range toMSI(toMSI(resp)["data"])["members"].([]interface{}) {
+				if toMSI(member)["id"].(string) == vm.Type()+"/"+strconv.Itoa(options.VMid) {
+					found = true
+					break
+				}
+			}
 
-		// found = false
-		// for _, member := range proxmox.ResponseJSON(resp)["data"].(map[string]interface{})["members"].([]interface{}) {
-		// 	if member.(map[string]interface{})["id"].(string) == "qemu/"+strconv.Itoa(options.VMid) {
-		// 		found = true
-		// 		break
-		// 	}
-		// }
-
-		// if found {
-		// 	return nil, errors.New("The VM " + strconv.Itoa(options.VMid) + " could not be removed by PUT")
-		// }
+			if found {
+				err = errors.New("The VM " + strconv.Itoa(options.VMid) + " could not be removed by PUT")
+				return
+			}
+		}
 
 		DebugMsg("Successfully removed the VM " + strconv.Itoa(options.VMid) + " from the pool " + testpoolname)
 
@@ -293,27 +302,29 @@ func init() {
 
 	// this expects an existing pool to be specified in command line
 	testActions["session_delete"] = func(options *TOptions) (response interface{}, err error) {
-		s := newSessionWithLogin(options)
+		var (
+			resp         interface{}
+			found        bool
+			testpoolname = options.Args[1]
+			s            = newSessionWithLogin(options)
+		)
 
-		testpoolname := options.Args[1]
+		if _, err = s.GetJSON("/pools", nil, &s.Headers, &resp); err != nil {
+			return
+		}
 
-		// present information about the created pool
-		// resp, err := s.Get("/pools", nil, &s.Headers)
-		// failOnError(err)
+		for _, pool := range toMSI(resp)["data"].([]interface{}) {
+			if toMSI(pool)["poolid"].(string) == testpoolname {
+				found = true
+				break
+			}
+		}
 
-		// var found bool
-		// for _, pool := range proxmox.ResponseJSON(resp)["data"].([]interface{}) {
-		// 	if pool.(map[string]interface{})["poolid"].(string) == testpoolname {
-		// 		found = true
-		// 		break
-		// 	}
-		// }
-
-		// if !found {
-		// 	return nil, errors.New("Couldn't find the pool " + strconv.Itoa(options.VMid))
-		// }
-
-		DebugMsg("Found the pool \"" + testpoolname + "\" just created.")
+		if !found {
+			err = errors.New("Couldn't find that the pool exists")
+			return
+		}
+		DebugMsg("Found the pool \"" + testpoolname + "\"")
 
 		DebugMsg("Attempting to remove the pool \"" + testpoolname + "\".")
 		return s.Delete("/pools/"+testpoolname, nil, &s.Headers)

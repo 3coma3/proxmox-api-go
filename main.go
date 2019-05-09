@@ -1,19 +1,14 @@
 package main
 
 import (
+	"github.com/3coma3/proxmox-api-go/test"
 	"flag"
 	"fmt"
-	"github.com/3coma3/proxmox-api-go/test"
 	"os"
 	"strconv"
 )
 
 func main() {
-	defer func() {
-		// exit with an error in case of errors
-		os.Exit(1)
-	}()
-
 	var (
 		err error
 
@@ -82,14 +77,19 @@ func main() {
 	// actually cares about what has been passed
 	// Ignoring these conditions is simpler and won't break things, though
 
-	// the failOnError, fatal, and bools will be later switched to proper
-	// error instance bubbling / wrapping back to main
-	{
-		test.DebugMsg("Running the test: " + options.Action)
-		err := test.Run(&options)
-		test.DebugMsg("The test " + options.Action + " has returned: " + strconv.FormatBool(err))
-		if !err {
-			panic("Test failed")
+	test.DebugMsg("Running test: " + options.Action)
+	veredict := "Test " + options.Action + " "
+
+	if err = test.Run(&options); err == nil {
+		test.DebugMsg(veredict + "PASSED")
+		os.Exit(0)
+	} else {
+		if msg := err.Error(); msg != "" {
+			test.DebugMsg("Test " + options.Action + " returned the error message: \"" + msg + "\"")
 		}
+
+		test.DebugMsg(veredict + "FAILED")
+		os.Exit(1)
 	}
+
 }
