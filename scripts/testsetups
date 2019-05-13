@@ -104,21 +104,21 @@ EOF
     return 2
 }
 
-testsetup_node_createvolume) {
+testsetup_node_createvolume() {
     local runcount=$1 ; shift
     local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
     setActionResult $target "(handler is a stub)"
     return 3
 }
 
-testsetup_node_deletevolume) {
+testsetup_node_deletevolume() {
     local runcount=$1 ; shift
     local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
     setActionResult $target "(handler is a stub)"
     return 3
 }
 
-testsetup_node_getstorageandvolumename) {
+testsetup_node_getstorageandvolumename() {
     local runcount=$1 ; shift
     local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
     setActionResult $target "(handler is a stub)"
