@@ -6,12 +6,12 @@ import (
 
 func init() {
 	// don't need a test
-	testActions["util_inarray"] = errNotImplemented
-	testActions["util_itob"] = errNotImplemented
+	testActions["vmdevice_inarray"] = errNotImplemented
+	testActions["vmdevice_itob"] = errNotImplemented
 
 	// for the multiple return value to fit in the response it will be packaged
 	// in a map
-	testActions["util_parsesubconf"] = func(options *TOptions) (interface{}, error) {
+	testActions["vmdevice_parsesubconf"] = func(options *TOptions) (interface{}, error) {
 		var response = map[string]interface{}{}
 
 		key, value := proxmox.ParseSubConf(options.Args[1], options.Args[2])
@@ -20,7 +20,7 @@ func init() {
 		return response, nil
 	}
 
-	testActions["util_parseconf"] = func(options *TOptions) (response interface{}, err error) {
+	testActions["vmdevice_parseconf"] = func(options *TOptions) (response interface{}, err error) {
 		return proxmox.ParseConf(options.Args[1], options.Args[2], options.Args[3]), nil
 	}
 }

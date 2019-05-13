@@ -54,37 +54,35 @@ func init() {
 		return
 	}
 
+	// TODO
+	testActions["session_typedresponse"] = errNotImplemented
+
 	// to test this try first with valid tokens, then with invalid
 	testActions["session_login"] = func(options *TOptions) (response interface{}, err error) {
+		var session *proxmox.Session
+
 		// create the session manually
 		tlsconf := &tls.Config{InsecureSkipVerify: true}
 		if !options.APIinsecure {
 			tlsconf = nil
 		}
 
-		if s, err := proxmox.NewSession(options.APIurl, nil, tlsconf); err == nil {
-			DebugMsg("Attempting login with VALID tokens")
-			options.APIuser, options.APIpass = "", ""
-			askUserPass(options)
-			err = s.Login(strings.TrimSuffix(options.APIuser, "\n"), strings.TrimSuffix(options.APIpass, "\n"))
-
-			// this login should succeed
-			if err != nil {
-				return "test failed", err
+		if session, err = proxmox.NewSession(options.APIurl, nil, tlsconf); err == nil {
+			tryLogin := func(s string) error {
+				DebugMsg("Attempting login with " + s + " tokens")
+				options.APIuser, options.APIpass = "", ""
+				askUserPass(options)
+				return session.Login(strings.TrimSuffix(options.APIuser, "\n"), strings.TrimSuffix(options.APIpass, "\n"))
 			}
 
-			DebugMsg("Attempting login with INVALID tokens")
-			options.APIuser, options.APIpass = "", ""
-			askUserPass(options)
-			err = s.Login(strings.TrimSuffix(options.APIuser, "\n"), strings.TrimSuffix(options.APIpass, "\n"))
-
-			// this login should fail
-			if err == nil {
-				return "test failed", errors.New("ERROR: login with INVALID tokens successful")
+			if tryLogin("VALID") != nil {
+				err = errors.New("Attempt to login with VALID tokens was unsuccessful")
+			} else if tryLogin("INVALID") == nil {
+				err = errors.New("Attempt to login with INVALID tokens was successful")
 			}
 		}
 
-		return "test OK", nil
+		return
 	}
 
 	// simple factory

@@ -4,7 +4,6 @@ package proxmox
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -87,8 +86,7 @@ func (c *Client) GetTaskExitstatus(taskUpid string) (exitStatus interface{}, err
 // WaitForCompletion - poll the API for task completion
 func (c *Client) WaitForCompletion(taskResponse map[string]interface{}) (waitExitStatus string, err error) {
 	if taskResponse["errors"] != nil {
-		errJSON, _ := json.MarshalIndent(taskResponse["errors"], "", "  ")
-		return string(errJSON), errors.New("Error reponse")
+		return taskResponse["errors"].(string), errors.New("Error reponse")
 	}
 	if taskResponse["data"] == nil {
 		return "", nil

@@ -99,6 +99,8 @@ func askUserPass(options *TOptions) {
 		terminalEcho(true)
 		options.APIpass = strings.TrimSuffix(pass, "\n")
 	}
+
+	fmt.Print("\n")
 }
 
 // this is done repeatedly on most Client and ConfigQemu tests, abstracting here
@@ -178,8 +180,16 @@ func Run(options *TOptions) (err error) {
 		proxmox.Debug = &Debug
 
 		var response interface{}
-		if response, err = test(options); response != nil {
-			DebugMsg("Response is " + fmt.Sprintf("%v", response))
+		response, err = test(options)
+
+		if response != nil {
+			DebugMsg("The test returned a response:")
+			if _, ok := response.(map[string]interface{}); ok {
+				jsonPrettyPrint, _ := json.MarshalIndent(response, "", "  ")
+				DebugMsg(string(jsonPrettyPrint))
+			} else {
+				fmt.Println(fmt.Sprintf("%v", response))
+			}
 		}
 
 		return err

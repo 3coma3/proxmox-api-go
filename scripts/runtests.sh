@@ -45,6 +45,8 @@ declare scriptdir="$(dirname "$0")"
 declare -a sequence
 declare -A results
 
+declare testoutput
+
 # these arrays are columns, each row is a VM handled by the tests
 declare -a vmids vmnames vmconfigs
 
@@ -71,7 +73,7 @@ export PM_API_URL='https://10.40.0.147:8006/api2/json' PM_USER='root@pam' PM_PAS
 # outputs JSON configuration for Qemu VM disks
 # parameters: $1 - disk name, $2 - disk size in GB, default 2GB
 diskjson() {
-  local filename="$1" size="${2:-2}"
+    local filename="$1" size="${2:-2}"
 
     cat<<EOF
 {
@@ -89,18 +91,18 @@ EOF
 # outputs a random MAC address
 # parameters: $1 - byte delimiter, default ':'
 newmac() {
-  local delimiter="${1:-:}"
-  local h2ndbit="2367ABEF"
-  local hexchars="0123456789ABCDEF"
-  for i in {1..12} ; do
-  # the first byte must have the lower nibble with the second LSB on 1
-  # to point a Locally Administered Address
-  if (( i == 2 )); then
-      echo -n ${h2ndbit:$(( $RANDOM % ${#h2ndbit} )):1}
-    else
-      echo -n ${hexchars:$(( $RANDOM % ${#hexchars} )):1}
-    fi
-  done | sed -re 's/(..)/\1'$delimiter'/g' -e 's/(.*).$/\1/g'
+    local delimiter="${1:-:}"
+    local h2ndbit="2367ABEF"
+    local hexchars="0123456789ABCDEF"
+    for i in {1..12} ; do
+        # the first byte must have the lower nibble with the second LSB on 1
+        # to point a Locally Administered Address
+        if (( i == 2 )); then
+            echo -n ${h2ndbit:$(( $RANDOM % ${#h2ndbit} )):1}
+        else
+            echo -n ${hexchars:$(( $RANDOM % ${#hexchars} )):1}
+        fi
+    done | sed -re 's/(..)/\1'$delimiter'/g' -e 's/(.*).$/\1/g'
 }
 
 # outputs JSON configuration for Qemu VMs
@@ -124,14 +126,14 @@ vmjson() {
       "size": "2G",
       "cache": "none",
       "format": "raw"
-    }
+  }
   },
   "network": {
     "0": {
       "model": "virtio",
       "bridge": "vmbr0",
       "macaddr": "$(newmac)" 
-    }
+  }
   }
 }
 EOF
@@ -143,71 +145,75 @@ EOF
 # this function allows to express the testing sequence as declaratively and
 # cleanly as possible, the downside is the logic at the setup handlers is a bit
 # more convoluted at some points, but I still think it's well worth it
-prepare_test_sequence() {
-    local action
+prepareSequence() {
+    debugMessage "Preparing the test sequence:"
 
-    echo -e "\nPreparing the test sequence\n"
+    sequence+=(node_getnodelist)
+    sequence+=(node_findnode)
+    sequence+=(node_check)
+    sequence+=(node_getinfo)
 
-    # start with the util tests
-    sequence+=(util_parseconf)
-    sequence+=(util_parsesubconf)
+    sequence+=(configlxc_newconfiglxcfromapi)
+    sequence+=(end)
 
-    # get some information and the ID to use for the following tests
-    sequence+=(configqemu_maxvmid)
-    sequence+=(client_getnextid)
-    sequence+=(client_checkvmref)
+    sequence+=(configlxc_createvm)
+    sequence+=(configlxc_newconfiglxcfromjson)
+    sequence+=(configlxc_creatempparams)
+    sequence+=(configlxc_createnetparams)
 
-    # create a VM and clone it
     sequence+=(configqemu_newconfigqemufromjson)
-    sequence+=(client_getnodelist)
     sequence+=(configqemu_createvm)
     sequence+=(configqemu_newconfigqemufromapi)
-    sequence+=(client_getnextid)
-    sequence+=(configqemu_clonevm)
+    sequence+=(configqemu_createdisksparams)
+    sequence+=(configqemu_createnetparams)
 
-    # get information about the VMs created
-    sequence+=(client_getvmlist)
-    sequence+=(client_getvmrefbyname)
-    sequence+=(client_checkvmref)
-    sequence+=(client_getvminfo)
-    sequence+=(client_getvmstate)
+    sequence+=(vm_getvmlist)
+    sequence+=(vm_getmaxvmid)
+    sequence+=(vm_getnextvmid)
+    sequence+=(vm_check)
+    sequence+=(vm_findvm)
+    sequence+=(vm_getinfo)
 
-    # these two are low level and don't really affect VMs, test their I/O
-    sequence+=(configqemu_createqemunetworksparams)
-    sequence+=(configqemu_createqemudisksparams)
+    sequence+=(node_createvolume)
+    sequence+=(node_deletevolume)
+    sequence+=(node_getstorageandvolumename)
+    sequence+=(vm_movedisk)
+    sequence+=(vm_resizedisk)
+    sequence+=(vmdevice_parseconf)
+    sequence+=(vmdevice_parsesubconf)
 
-    # disk operations
-    sequence+=(client_createvmdisk)
-    sequence+=(client_resizeqemudisk)
-    # deletvmdisks will always fail, but testing anyway
-    sequence+=(client_deletevmdisks)
+    sequence+=(vm_getstatus)
+    sequence+=(vm_start)
+    sequence+=(vm_reset)
+    sequence+=(vm_suspend)
+    sequence+=(vm_resume)
+    sequence+=(vm_shutdown)
+    sequence+=(vm_waitforshutdown)
+    sequence+=(vm_stop)
+    sequence+=(vm_setstatus)
 
-    # start the first VM and conduct some tests that need a running VM
-    sequence+=(client_startvm)
-    sequence+=(configqemu_sshforwardusernet)
-    sequence+=(configqemu_sendkeysstring)
-    sequence+=(configqemu_removesshforwardusernet)
-    sequence+=(client_monitorcmd)
+    sequence+=(vm_monitorcmd)
+    sequence+=(vm_sendkeysstring)
+    sequence+=(vm_sshforwardusernet)
+    sequence+=(vm_removesshforwardusernet)
+    sequence+=(vm_getagentnetworkinterfaces)
+    sequence+=(vm_getspiceproxy)
 
-    # continue the status tests and finish with a statuschangevm cycle
-    sequence+=(client_startvm)
-    sequence+=(client_resetvm)
-    sequence+=(client_suspendvm)
-    sequence+=(client_resetvm)
-    sequence+=(client_suspendvm)
-    sequence+=(client_resumevm)
-    sequence+=(client_resumevm)
-    # this will of course fail if the guest OS doesn't support ACPI
-    sequence+=(client_shutdownvm)
-    sequence+=(client_stopvm)
-    sequence+=(client_stopvm)
-    sequence+=(client_statuschangevm)
+    sequence+=(vm_getconfig)
+    sequence+=(vm_createsnapshot)
+    sequence+=(vm_getsnapshotlist)
+    sequence+=(configlxc_updateconfig)
+    sequence+=(configqemu_updateconfig)
+    sequence+=(vm_rollback)
+    sequence+=(vm_deletesnapshot)
 
-    # this test requires manual creation of the snapshot
-    # because snapshot functionality is not implemented
-    sequence+=(client_rollbackqemuvm)
+    sequence+=(vm_clone)
+    sequence+=(vm_migrate)
+    sequence+=(vm_createbackup)
+    sequence+=(vm_createtemplate)
+    sequence+=(vm_delete)
+    sequence+=(client_gettaskexitstatus)
 
-    # session tests
     sequence+=(session_login)
     sequence+=(session_paramstobody)
     sequence+=(session_responsejson)
@@ -219,37 +225,35 @@ prepare_test_sequence() {
     sequence+=(session_put)
     sequence+=(session_delete)
 
-    # finally delete the VMs and get the task ID
-    sequence+=(client_deletevm)
-    sequence+=(client_deletevm)
-
-    # get task exit status for the last deletion
-    sequence+=(client_gettaskexitstatus)
-
+    local action
     for action in "${sequence[@]}"; do
         results[$action]='not yet tested'
-        echo $action is ${results[$action]}
-      done | sort
+    done
 }
 
-run_test_sequence() {
+runSequence() {
     local action setup
     local -A setups=()
 
-    echo -e "\nRunning the tests\n"
+    debugMessage "Running the tests"
 
-    # list all the setup functions
+    # save all the test setup functions
     while read setup; do
         setups[$setup]=1
     done< <(declare -f | sed -rn "s/^(${setup_prefix}.*) \(\)/\1/p")
 
     # for each entry in the sequence that has a setup, call the setup function
-    # if there isn't a setup for the entry, call the default setup
+    # otherwise pass the entry to the default setup as its target
 
-    # setup functions receive as first argument the number of times that
-    # function has been called, so they can behave differently depending on
-    # the point of execution
+    # setup functions receive the number of times that they have been called so
+    # they can behave differently depending on the point of execution in the
+    # sequence, this is their first argument
     for action in "${sequence[@]}"; do
+        [[ $action == end ]] && {
+            debugMessage "End sequence"
+            return
+        }
+
         setup=${setup_prefix}${action}
 
         if (( ${setups[$setup]} )); then
@@ -263,21 +267,80 @@ run_test_sequence() {
     done
 }
 
+printSequence() {
+    debugMessage "This is the test sequence:"
+
+    # don't print these
+    local filter='^\(end\|somethingelse\)'
+
+    for action in "${sequence[@]}"; do
+       echo "$action -> ${results[$action]}"
+    done | grep -v "$filter" | sort
+}
+
+promptNode() {
+    local message="$1" default="$2" strict="$3"
+    while read -p "$message" selectednode; do
+        case "${selectednode}" in
+            @($(sed 's/ /|/g' <<< ${nodes[@]}))) ;;
+            '') selectednode="$default"
+                return 1 ;;
+            *)  if (( $strict )); then
+                    echo "\"$selectednode\" is not a valid option, please enter one of the following: ${nodes[@]}"
+                    continue
+                fi ;;
+        esac
+        break
+    done
+
+    return 0
+}
+
+setActionResult() {
+  local target=$1 result=$2
+    case "$result" in
+        0) results[$target]="PASSED" ;;
+        1) results[$target]="FAILED" ;;
+        *) results[$target]="OTHER - test action has returned exit status = $result" ;;
+    esac
+}
+
+debugMessage() {
+    local msg="$1"
+    cat<<EOF
+
+
+======= $msg =======
+
+EOF
+}
+
+startHeader() {
+    cat<<EOF
+$(debugMessage "$1 mode")
+
+Calling the tests with this environment:
+
+PM_API_URL | $PM_API_URL
+PM_USER    | $PM_USER
+PM_PASS    | $PM_PASS
+
+EOF
+}
+
 main() {
-    echo "Calling the tests with the following environment:"
-    echo "PM_API_URL=$PM_API_URL"
-    echo "PM_USER=$PM_USER"
-
     if (( ! $# )); then
-        echo -e "\n======= Sequence mode =======\n"
+        startHeader Sequence
 
-        echo "To avoid entering the password at each test you can enter it at this point"
-        echo "If you press enter here, the Go code will ask for the password each time it runs"
-        read -sp "Enter the password for $PM_USER: " PM_PASS
+        if [[ -z "$PM_PASS" ]]; then
+            echo "To avoid entering the password at each test you can enter it at this point"
+            echo "If you press enter here, the Go code will ask for the password each time it runs"
+            read -sp "Enter the password for $PM_USER: " PM_PASS
+        fi
 
-        prepare_test_sequence && run_test_sequence
+        prepareSequence; printSequence; runSequence; printSequence
     else
-        echo -e "\n======= Forward mode =======\n"
+        startHeader Forward
         "$test_binary" $@
     fi
 }
