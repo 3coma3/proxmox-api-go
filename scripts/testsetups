@@ -12,17 +12,15 @@ testsetup_default() {
     return
 }
 
-testsetup_simple() {
-    echo "Running the test action"
-    "$test_binary" $test_default_flags $@
-}
-
 testsetup_capture() {
     debugMessage 'Running the test action and capturing output'
 
     shopt -s lastpipe
-    "$test_binary" $test_default_flags $@ 2>&1 | readarray -t testoutput< <(cat)
-    local target_exit_status=${PIPESTATUS[0]}
+    local line
+    while read -t 1 line; do
+        echo "$line"
+    done | "$test_binary" $test_default_flags $@ 2>&1 | readarray -t testoutput< <(cat)
+    local target_exit_status=${PIPESTATUS[1]}
 
     for line in "${testoutput[@]}"; do
         echo "$line"
@@ -31,14 +29,28 @@ testsetup_capture() {
     return $target_exit_status
 }
 
-testsetup_node_getnodelist() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
-    local result
+testsetup_simple() {
+    local target="${FUNCNAME[1]##*${setup_prefix}}"
 
-    testsetup_capture $target
-    result=$?
-    setActionResult $target $result
+    # if caller is not a setup handler, target is the first argument
+    if [[ "$target" == "${FUNCNAME[1]}" ]]; then
+        target="$1" ; shift
+    fi
+
+    debugMessage "SETUP TARGET: $target"
+    testsetup_capture $target $@
+    setActionResult $target $?
+}
+
+testsetup_stub() {
+    local target=${FUNCNAME[1]##*${setup_prefix}}
+    debugMessage "SETUP TARGET: $target"
+    setActionResult $target STUB
+}
+
+testsetup_node_getnodelist() {
+    testsetup_simple
+    local result=$?
 
     # save the node names in a global array
     local line
@@ -47,7 +59,7 @@ testsetup_node_getnodelist() {
         [[ -n $node ]] && nodes+=($node)
     done
 
-    # sort the node list
+    # sort the array
     local oldifs=$IFS
     IFS=$'\n' nodes=($(sort <<< "${nodes[*]}")) IFS=$oldifs
 
@@ -55,75 +67,140 @@ testsetup_node_getnodelist() {
 }
 
 testsetup_node_findnode() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    cat<<EOF
-Enter node names to find, an empty line ends the test
-EOF
+    debugMessage 'manual intervention needed'
+    echo "Enter node names to find, an empty line ends the test"
 
     while promptNode 'Find node (enter to finish): ' " " 1; do
         testsetup_capture $target $selectednode
     done
 
-    setActionResult $target "(manually tested)"
-    return 2
+    setActionResult $target MANUALLY_TESTED
 }
 
 testsetup_node_check() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
-    local result
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    debugMessage 'Checking all the nodes'
+    debugMessage 'checking all detected nodes'
+
+    local result
     for node in "${nodes[@]}"; do
         testsetup_capture $target $node
         result=$?
-        setActionResult $target $result
         if (( result )); then
             break
         fi
     done
 
-    return $result
+    setActionResult $target $result
 }
 
 testsetup_node_getinfo() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    cat<<EOF
-Enter node names to get info, an empty line ends the test
-EOF
+    debugMessage 'manual intervention needed'
+    echo "Enter node names to get info, an empty line ends the test"
 
     while promptNode 'Get node info (enter to finish): ' " " 1; do
         testsetup_capture $target "$selectednode"
     done
 
-    setActionResult $target "(manually tested)"
-    return 2
+    setActionResult $target MANUALLY_TESTED
 }
 
 testsetup_node_createvolume() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
-    setActionResult $target "(handler is a stub)"
-    return 3
+    testsetup_stub
 }
 
 testsetup_node_deletevolume() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
-    setActionResult $target "(handler is a stub)"
-    return 3
+    testsetup_stub
 }
 
 testsetup_node_getstorageandvolumename() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}} ; echo "SETUP TARGET: $target"
-    setActionResult $target "(handler is a stub)"
-    return 3
+    testsetup_stub
 }
+
+testsetup_vm_getvmlist() {
+    testsetup_simple
+}
+
+testsetup_vm_getmaxvmid() {
+    testsetup_stub
+}
+
+testsetup_vm_getnextvmid() {
+    testsetup_simple
+    local result=$? lines="${#lineoutput[*]}"
+
+    (( result == 0 )) && {
+        vmid="${testoutput[$((lines-2))]}"
+        echo "The new VMID from getnextid is: $vmid"
+    }
+
+    return $result
+}
+
+testsetup_configlxc_newconfiglxcfromjson() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'Generating new CT configuration'
+    ctnames[$((runcount-1))]="test-createct${runcount}"
+    ctconfigs[$((runcount-1))]=$(ctjson ${ctnames[$((runcount-1))]})
+
+    testsetup_capture $target <<< ${ctconfigs[$((runcount-1))]}
+    setActionResult $target $?
+}
+
+testsetup_configlxc_createvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags="-vmid $vmid"
+
+    ctids+=($vmid)
+
+    debugMessage 'Manual intervention needed'
+    cat<<EOF
+These are the nodes I got from the previous node_getnodelist test: ${nodes[@]}
+At which node should I attempt to create the CTs?
+EOF
+
+    promptNode "Enter node name (${nodes[0]}) " "${nodes[0]}" 1
+    selectednode_lxc=$selectednode
+
+    testsetup_capture $flags $target $selectednode_lxc <<< ${ctconfigs[$((runcount-1))]}
+    setActionResult $target $?
+}
+
+testsetup_configlxc_newconfiglxcfromapi() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags="-vmid $vmid"
+    testsetup_capture $flags $target
+    setActionResult $target $?
+}
+
+testsetup_configlxc_createnetparams() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    testsetup_simple <<EOF
+{
+  "model": "virtio",
+  "bridge": "vmbr0",
+  "hwaddr": "$(newmac)" 
+}
+EOF
+}
+
+testsetup_configqemu_creatempparams() {
+    testsetup_stub
+    # local target=${FUNCNAME##*${setup_prefix}}
+    # testsetup_simple $target < <(diskjson test-createqemudisksparams 2)
+}
+
+
+###############################################################
+
 
 testsetup_client_getvminfo() {
     local runcount=$1 ; shift
@@ -276,29 +353,6 @@ EOF
     testsetup_simple $flags $target "$snapshot"
 }
 
-testsetup_client_getnextid() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-
-    echo 'Running the test action and capturing output'
-
-    local -a output
-    readarray -t output< <("$test_binary" $test_default_flags $target 2>&1)
-
-    local line
-    for line in "${!output[@]}"; do
-        echo "${output[$line]}"
-    done
-
-    local response status="${output[$((line))]}"
-    [[ "${status##*: }" == "true" ]] && {
-        echo 'Getting the new VM ID to use'
-        response="${output[$((line-1))]}"
-        vmids+=(${response##*response is })
-        echo "The new VMID from getnextid is: ${vmids[$((${#vmids[@]}-1))]}"
-    }
-}
-
 testsetup_client_resizeqemudisk() {
     local runcount=$1 ; shift
     local target=${FUNCNAME##*${setup_prefix}}
@@ -333,31 +387,6 @@ testsetupclient_deletevmdisks() {
     testsetup_simple $flags $target $arguments
 }
 
-testsetup_configqemu_createvm() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local flags="-vmid ${vmids[$((runcount-1))]}"
-
-    echo "These are the nodes I got from the previous client_getnodelist test: ${nodes[@]}"
-    echo "At which node should I attempt to create the VMs?"
-
-    promptNode "Enter node name (${nodes[0]}) " 
-
-    local arguments="$selectednode"
-    
-    vmnames[$((runcount-1))]="test-createvm${runcount}"
-
-    echo 'Running the test action and capturing output'
-
-    local -a output
-    readarray -t output< <("$test_binary" $flags $test_default_flags $target $arguments< <(vmjson ${vmnames[$((runcount-1))]}) 2>&1)
-
-    local line
-    for line in "${!output[@]}"; do
-        echo "${output[$line]}"
-    done
-}
-
 testsetup_configqemu_clonevm() {
     local runcount=$1 ; shift
     local target=${FUNCNAME##*${setup_prefix}}
@@ -380,13 +409,6 @@ testsetup_configqemu_updateconfig() {
 testsetup_configqemu_newconfigqemufromjson() {
     local target=${FUNCNAME##*${setup_prefix}}
     testsetup_simple $target< <(vmjson test-newconfigqemufromjson)
-}
-
-testsetup_configqemu_newconfigqemufromapi() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local arguments="${vmids[$((runcount-1))]}"
-    testsetup_simple $target $arguments
 }
 
 testsetup_configqemu_sshforwardusernet() {
@@ -419,24 +441,6 @@ EOF
       [[ -z "$line" ]] && break
       testsetup_simple $flags $target "$line"
     done
-}
-
-testsetup_configqemu_createqemunetworksparams() {
-    local target=${FUNCNAME##*${setup_prefix}}
-    local netjson=<<EOF
-{
-  "model": "virtio",
-  "bridge": "vmbr0",
-  "macaddr": "$(newmac)" 
-}
-EOF
-
-    testsetup_simple $target <<< $netjson
-}
-
-testsetup_configqemu_createqemudisksparams() {
-    local target=${FUNCNAME##*${setup_prefix}}
-    testsetup_simple $target < <(diskjson test-createqemudisksparams 2)
 }
 
 testsetup_session_paramstobody() {

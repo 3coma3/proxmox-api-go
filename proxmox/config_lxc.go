@@ -75,7 +75,7 @@ func (config ConfigLxc) CreateVm(vm *Vm) (err error) {
 	config.CreateNetParams(vm.id, params)
 
 	if exitStatus, err := vm.Create(params); err != nil {
-		err = fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
+		return fmt.Errorf("Error creating VM: %v, error status: %s (params: %v)", err, exitStatus, params)
 	}
 
 	return

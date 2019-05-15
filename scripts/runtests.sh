@@ -32,7 +32,6 @@
 
 
 # SHELL DIRECTIVES
-
 # this parser directive must be always at the top
 # enable extended globs for pattern matching
 shopt -s extglob
@@ -49,16 +48,21 @@ declare testoutput
 
 # these arrays are columns, each row is a VM handled by the tests
 declare -a vmids vmnames vmconfigs
+declare -a ctids ctnames ctconfigs
 
 # for node selection
 declare -a nodes
-declare selectednode
+declare selectednode selectednode_lxc
 
 # for POST/PUT/DELETE tests
 declare testpoolname='testpool'
 
 # for gettaskexitstatus
 declare UPID
+
+# error codes and messages
+declare -A exitcodes
+declare -a exitmsgs
 
 
 # CONFIGURATION - modify these values as needed
@@ -68,7 +72,9 @@ setup_prefix='testsetup_'
 export PM_API_URL='https://10.40.0.147:8006/api2/json' PM_USER='root@pam' PM_PASS
 
 
-# HELPER FUNCTIONS
+# CODE
+
+# JSON template setup helpers
 
 # outputs JSON configuration for Qemu VM disks
 # parameters: $1 - disk name, $2 - disk size in GB, default 2GB
@@ -92,17 +98,51 @@ EOF
 # parameters: $1 - byte delimiter, default ':'
 newmac() {
     local delimiter="${1:-:}"
-    local h2ndbit="2367ABEF"
     local hexchars="0123456789ABCDEF"
+    local mac=''
     for i in {1..12} ; do
-        # the first byte must have the lower nibble with the second LSB on 1
-        # to point a Locally Administered Address
-        if (( i == 2 )); then
-            echo -n ${h2ndbit:$(( $RANDOM % ${#h2ndbit} )):1}
-        else
-            echo -n ${hexchars:$(( $RANDOM % ${#hexchars} )):1}
-        fi
-    done | sed -re 's/(..)/\1'$delimiter'/g' -e 's/(.*).$/\1/g'
+        mac=$mac${hexchars:$(( $RANDOM % ${#hexchars} )):1}
+        (( i == 2 )) && mac=$(printf '%X' "$(( 0x$mac & 0xFE | 0x2 ))")
+    done
+    printf '%X\n' "0x$mac" | sed -re 's/(..)/\1'$delimiter'/g' -e 's/(.*).$/\1/g'
+}
+
+# outputs JSON configuration for CTs
+# parameters: $1 - CT name, default 'testct'
+ctjson() {
+    local ctname="${1:-testct}"
+    cat<<EOF
+{
+    "ostemplate": "local:vztmpl/ubuntu-16.04-standard_16.04-1_amd64.tar.gz",
+    "arch": "amd64",
+    "cores": 4,
+    "hostname": "$ctname",
+    "memory": 512,
+    "nameserver": "8.8.8.8 1.1.1.1",
+    "net": {
+        "0": {
+        "name": "eth0",
+        "bridge": "vmbr0",
+        "type": "veth"
+        },
+        "1": {
+        "name": "eth1",
+        "bridge": "vmbr0",
+        "tag": "25",
+        "type":"veth",
+        "hwaddr": "$(newmac)"
+        }
+    },
+    "ostype": "ubuntu",
+    "rootfs": {
+        "storage": "local-lvm",
+        "size": "8G",
+        "acl": true
+    },
+    "searchdomain": "test.com",
+    "swap": 512
+}
+EOF
 }
 
 # outputs JSON configuration for Qemu VMs
@@ -111,36 +151,78 @@ vmjson() {
     local vmname="${1:-testvm}"
     cat<<EOF
 {
-  "name": "$vmname",
-  "onboot": false,
-  "memory": 2048,
-  "ostype": "l26",
-  "cores": 1,
-  "sockets": 1,
-  "iso": "local:iso/uccorelinux.iso",
-  "disk": {
+    "name": "$vmname",
+    "onboot": false,
+    "memory": 2048,
+    "ostype": "l26",
+    "cores": 1,
+    "sockets": 1,
+    "iso": "local:iso/uccorelinux.iso",
+    "disk": {
     "0": {
-      "type": "virtio",
-      "storage": "local-lvm",
-      "storage_type": "lvmthin",
-      "size": "2G",
-      "cache": "none",
-      "format": "raw"
-  }
-  },
-  "network": {
-    "0": {
-      "model": "virtio",
-      "bridge": "vmbr0",
-      "macaddr": "$(newmac)" 
-  }
-  }
+          "type": "virtio",
+          "storage": "local-lvm",
+          "storage_type": "lvmthin",
+          "size": "2G",
+          "cache": "none",
+          "format": "raw"
+        }
+    },
+    "network": {
+        "0": {
+            "model": "virtio",
+            "bridge": "vmbr0",
+            "macaddr": "$(newmac)" 
+        }
+    }
 }
 EOF
 }
 
 
-# MAIN CODE
+# other helpers
+
+promptNode() {
+    local message="$1" default="$2" strict="$3"
+    while read -p "$message" selectednode; do
+        case "${selectednode}" in
+            @($(sed 's/ /|/g' <<< ${nodes[@]}))) ;;
+            '') selectednode="$default"
+                return 1 ;;
+            *)  if (( $strict )); then
+                    echo "\"$selectednode\" is not a valid option, please enter one of the following: ${nodes[@]}"
+                    continue
+                fi ;;
+        esac
+        break
+    done
+
+    return 0
+}
+
+debugMessage() {
+    local msg="$1"
+    cat<<EOF
+
+======= $msg =======
+EOF
+}
+
+startHeader() {
+    cat<<EOF
+$(debugMessage "$1 mode")
+
+Calling the tests with this environment:
+
+PM_API_URL | $PM_API_URL
+PM_USER    | $PM_USER
+PM_PASS    | $PM_PASS
+
+EOF
+}
+
+
+# test sequence functions
 
 # this function allows to express the testing sequence as declaratively and
 # cleanly as possible, the downside is the logic at the setup handlers is a bit
@@ -153,12 +235,15 @@ prepareSequence() {
     sequence+=(node_check)
     sequence+=(node_getinfo)
 
-    sequence+=(configlxc_newconfiglxcfromapi)
-    sequence+=(end)
-
-    sequence+=(configlxc_createvm)
+    sequence+=(vm_getvmlist)
+    sequence+=(vm_getmaxvmid)
     sequence+=(configlxc_newconfiglxcfromjson)
+    sequence+=(vm_getnextvmid)
+    sequence+=(configlxc_createvm)
+    sequence+=(configlxc_newconfiglxcfromapi)
     sequence+=(configlxc_creatempparams)
+
+    sequence+=(end)
     sequence+=(configlxc_createnetparams)
 
     sequence+=(configqemu_newconfigqemufromjson)
@@ -167,9 +252,6 @@ prepareSequence() {
     sequence+=(configqemu_createdisksparams)
     sequence+=(configqemu_createnetparams)
 
-    sequence+=(vm_getvmlist)
-    sequence+=(vm_getmaxvmid)
-    sequence+=(vm_getnextvmid)
     sequence+=(vm_check)
     sequence+=(vm_findvm)
     sequence+=(vm_getinfo)
@@ -227,7 +309,7 @@ prepareSequence() {
 
     local action
     for action in "${sequence[@]}"; do
-        results[$action]='not yet tested'
+        results[$action]=''
     done
 }
 
@@ -254,15 +336,17 @@ runSequence() {
             return
         }
 
+        echo -e "\nLooking for next action"
         setup=${setup_prefix}${action}
 
         if (( ${setups[$setup]} )); then
-            echo -e "\nFound setup for action: \"$action\""
+            echo -e "Found setup for action: \"$action\""
             $setup ${setups[$setup]} $@
             (( setups[$setup]++ ))
         else
-            echo -e "\nCalling simple forward for action: \"$action\""
+            echo -e "Calling simple forward for action: \"$action\""
             ${setup_prefix}simple $action
+            setActionResult $target $?
         fi
     done
 }
@@ -274,78 +358,83 @@ printSequence() {
     local filter='^\(end\|somethingelse\)'
 
     for action in "${sequence[@]}"; do
-       echo "$action -> ${results[$action]}"
+        local msg output="$action ->" result="${results[$action]}"
+
+        if [[ -z "$result" ]]; then output="$output not tested"
+        else
+            output="$output $(exitCodeName $result)"
+            local msg="${exitmsgs[$result]}"
+            [[ -n "$msg" ]] && output="$output ($msg)"
+        fi
+
+        echo $output
     done | grep -v "$filter" | sort
 }
 
-promptNode() {
-    local message="$1" default="$2" strict="$3"
-    while read -p "$message" selectednode; do
-        case "${selectednode}" in
-            @($(sed 's/ /|/g' <<< ${nodes[@]}))) ;;
-            '') selectednode="$default"
-                return 1 ;;
-            *)  if (( $strict )); then
-                    echo "\"$selectednode\" is not a valid option, please enter one of the following: ${nodes[@]}"
-                    continue
-                fi ;;
-        esac
-        break
-    done
 
-    return 0
+# exit codes and messages
+
+exitCodeName() {
+    for code in "${!exitcodes[@]}"; do
+        (( ${exitcodes[$code]} == $1 )) && {
+            echo $code
+        }
+    done
+}
+
+addExitCode() {
+    local code=$1 name=$2 ; shift 2 ; local msg="$@"
+    exitcodes[$name]=$code
+    exitmsgs[$code]="$msg"
+}
+
+prepareExitCodes() {
+    addExitCode 0 PASSED
+    addExitCode 1 FAILED
+    addExitCode 2000 MANUALLY_TESTED "the test was conducted by manual intervention"
+    addExitCode 2001 STUB "setup handler is a stub"
 }
 
 setActionResult() {
-  local target=$1 result=$2
-    case "$result" in
-        0) results[$target]="PASSED" ;;
-        1) results[$target]="FAILED" ;;
-        *) results[$target]="OTHER - test action has returned exit status = $result" ;;
-    esac
+    local action=$1 result=$2
+
+    # result might be passed as numeric or symbolic name
+    re='^[0-9]+$'
+    if [[ $result =~ $re ]]; then
+        results[$action]=$result
+    else
+        results[$action]=${exitcodes[$result]}
+    fi
+
+    return ${results[$action]}
 }
 
-debugMessage() {
-    local msg="$1"
-    cat<<EOF
 
-
-======= $msg =======
-
-EOF
-}
-
-startHeader() {
-    cat<<EOF
-$(debugMessage "$1 mode")
-
-Calling the tests with this environment:
-
-PM_API_URL | $PM_API_URL
-PM_USER    | $PM_USER
-PM_PASS    | $PM_PASS
-
-EOF
-}
+# main
 
 main() {
     if (( ! $# )); then
         startHeader Sequence
 
         if [[ -z "$PM_PASS" ]]; then
-            echo "To avoid entering the password at each test you can enter it at this point"
-            echo "If you press enter here, the Go code will ask for the password each time it runs"
+            cat<<EOF
+To avoid entering the password at each test you can enter it at this point
+If you press enter here, the Go code will ask for the password each time it runs"
+EOF
             read -sp "Enter the password for $PM_USER: " PM_PASS
         fi
 
-        prepareSequence; printSequence; runSequence; printSequence
+        prepareExitCodes
+        prepareSequence
+        runSequence
+        printSequence
     else
         startHeader Forward
         "$test_binary" $@
     fi
 }
 
-# the setup functions are in this file
+# include the setup functions in this file
 . "$scriptdir/testsetups"
 
 main $@

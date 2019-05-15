@@ -10,7 +10,8 @@ func init() {
 	testActions["configlxc_createvm"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
 
-		if config, err := proxmox.NewConfigLxcFromJson(os.Stdin, false); err == nil {
+		var config *proxmox.ConfigLxc
+		if config, err = proxmox.NewConfigLxcFromJson(os.Stdin, false); err == nil {
 			vm.SetNode(proxmox.NewNode(options.Args[1]))
 			err = config.CreateVm(vm)
 		}
