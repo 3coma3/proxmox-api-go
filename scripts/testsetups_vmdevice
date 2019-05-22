@@ -1,0 +1,38 @@
+#!/bin/bash
+
+testsetup_vmdevice_parsesubconf() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    local arguments kv delimiter
+    local delimiters='=:-|>#'
+    for ((i=1; i<=20; i++)); do
+      delimiter=${delimiters:$(( $RANDOM % ${#delimiters} )):1}
+      kv="key${i}${delimiter}randomvalue$((RANDOM % 99 + 1))"
+      arguments="$kv $delimiter"
+      runAction $target $arguments
+      result=$?
+      setActionResult $target $result
+      (( result )) && break
+  done
+  return $result
+}
+
+testsetup_vmdevice_parseconf() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local arguments kvs pairdelims kvdelim nosamedelim
+    local pairdelims=",;:|" kvdelims="=:-|>#"
+    for ((i=0; i<${#kvdelims}; i++)); do
+      kvs=''
+      pairdelim=${pairdelims:$((i % ${#pairdelims})):1}
+      nosamedelim=${kvdelims/[${pairdelim},${kvdelim}]/}
+      kvdelim=${nosamedelim:$(( $RANDOM % ${#nosamedelim} )):1}
+      for ((j=1; j<=20; j++)); do
+          kvs="${kvs:+${kvs}${pairdelim}}key${j}${kvdelim}randomvalue$((RANDOM % 99 + 1))"
+      done
+      arguments="$kvs $pairdelim $kvdelim"
+      runAction $target $arguments
+      result=$?
+      setActionResult $target $result
+      (( result )) && break
+  done
+  return $result
+}

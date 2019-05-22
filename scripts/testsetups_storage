@@ -1,0 +1,61 @@
+#!/bin/bash
+
+testsetup_storage_getstoragelist() {
+    testsetup_simple
+    local result=$?
+
+    # save the storage names in a global array
+    local line
+    for line in "${testoutput[@]}"; do
+        storage=$(sed -rn 's/\"storage\": \"(.*)\",/\1/p' <<< "$line")
+        [[ -n $storage ]] && storages+=($storage)
+    done
+
+    # sort the array
+    local oldifs=$IFS
+    IFS=$'\n' storages=($(sort <<< "${storages[*]}")) IFS=$oldifs
+
+    return $result
+}
+
+testsetup_storage_findstorage() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'manual intervention needed'
+    echo "Enter storage names to find, an empty line ends the test"
+
+    while promptStorage 'Find storage (enter to finish): ' " " 0; do
+        runAction $target $selectedstorage
+    done
+
+    setActionResult $target MANUALLY_TESTED
+}
+
+testsetup_storage_check() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'checking all detected storages'
+
+    local result storage
+    for storage in "${storages[@]}"; do
+        runAction $target $storage
+        (( result=$? )) && break
+    done
+
+    setActionResult $target $result
+}
+
+testsetup_storage_getinfo() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'manual intervention needed'
+    echo "Enter storage names to get info, an empty line ends the test"
+
+    while promptStorage 'Get storage info (enter to finish): ' " " 0; do
+        runAction $target "$selectedstorage"
+    done
+
+    setActionResult $target MANUALLY_TESTED
+}
+
+

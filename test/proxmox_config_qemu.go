@@ -10,7 +10,8 @@ func init() {
 	testActions["configqemu_createvm"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
 
-		if config, err := proxmox.NewConfigQemuFromJson(os.Stdin); err == nil {
+		var config *proxmox.ConfigQemu
+		if config, err = proxmox.NewConfigQemuFromJson(os.Stdin); err == nil {
 			vm.SetNode(proxmox.NewNode(options.Args[1]))
 			err = config.CreateVm(vm)
 		}

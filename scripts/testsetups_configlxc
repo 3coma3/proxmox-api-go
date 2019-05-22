@@ -1,0 +1,56 @@
+#!/bin/bash
+
+testsetup_configlxc_newconfiglxcfromjson() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'Generating new CT configuration'
+    selectedid_ct=$selectedid
+    vms[$selectedid_ct]='ct'
+    vmnames[$selectedid_ct]="test-createct${runcount}"
+    vmconfigs[$selectedid_ct]=$(ctJson ${vmnames[$selectedid_ct]})
+
+    runAction $target <<< ${vmconfigs[$selectedid_ct]}
+    setActionResult $target $?
+}
+
+testsetup_configlxc_createvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'Manual intervention needed'
+    cat<<EOF
+These are the nodes I got from the previous node_getnodelist test: ${nodes[@]}
+At which node should I attempt to create the CTs?
+EOF
+
+    promptNode "Enter node name (${nodes[0]}) " "${nodes[0]}" 1
+    selectednode_ct=$selectednode
+
+    local flags="-vmid $selectedid_ct"
+    runAction $flags $target $selectednode_ct <<< ${vmconfigs[$selectedid_ct]}
+    setActionResult $target $?
+}
+
+testsetup_configlxc_newconfiglxcfromapi() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags="-vmid $selectedid_ct"
+    runAction $flags $target
+    setActionResult $target $?
+}
+
+testsetup_configlxc_createnetparams() {
+    testsetup_simple <<EOF
+{
+  "model": "virtio",
+  "bridge": "vmbr0",
+  "hwaddr": "$(randomMacAddress)" 
+}
+EOF
+}
+
+testsetup_configlxc_creatempparams() {
+    testsetup_stub
+    # local target=${FUNCNAME##*${setup_prefix}}
+    # testsetup_simple $target < <(diskJson test-createqemudisksparams 2)
+}

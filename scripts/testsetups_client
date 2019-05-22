@@ -1,0 +1,6 @@
+#!/bin/bash
+
+testsetup_client_gettaskexitstatus() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    testsetup_simple $target "$UPID"
+}

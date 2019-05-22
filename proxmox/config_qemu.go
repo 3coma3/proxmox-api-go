@@ -22,10 +22,10 @@ type ConfigQemu struct {
 	Onboot      bool      `json:"onboot"`
 	Agent       string    `json:"agent"`
 	Memory      int       `json:"memory"`
-	QemuOs      string    `json:"os"`
-	QemuCores   int       `json:"cores"`
-	QemuSockets int       `json:"sockets"`
-	QemuIso     string    `json:"iso"`
+	Ostype      string    `json:"ostype"`
+	Cores       int       `json:"cores"`
+	Sockets     int       `json:"sockets"`
+	Iso         string    `json:"iso"`
 	Disk        VmDevices `json:"disk"`
 	Net         VmDevices `json:"net"`
 
@@ -54,10 +54,10 @@ func (config ConfigQemu) CreateVm(vm *Vm) (err error) {
 		"name":        config.Name,
 		"onboot":      config.Onboot,
 		"agent":       config.Agent,
-		"ide2":        config.QemuIso + ",media=cdrom",
-		"ostype":      config.QemuOs,
-		"sockets":     config.QemuSockets,
-		"cores":       config.QemuCores,
+		"ide2":        config.Iso + ",media=cdrom",
+		"ostype":      config.Ostype,
+		"sockets":     config.Sockets,
+		"cores":       config.Cores,
 		"cpu":         "host",
 		"memory":      config.Memory,
 		"description": config.Description,
@@ -93,8 +93,8 @@ func (config ConfigQemu) UpdateConfig(vm *Vm) (err error) {
 		"description": config.Description,
 		"onboot":      config.Onboot,
 		"agent":       config.Agent,
-		"sockets":     config.QemuSockets,
-		"cores":       config.QemuCores,
+		"sockets":     config.Sockets,
+		"cores":       config.Cores,
 		"memory":      config.Memory,
 	}
 
@@ -221,17 +221,17 @@ func NewConfigQemuFromApi(vm *Vm) (config *ConfigQemu, err error) {
 		Description: strings.TrimSpace(description),
 		Onboot:      onboot,
 		Agent:       agent,
-		QemuOs:      ostype,
+		Ostype:      ostype,
 		Memory:      int(memory),
-		QemuCores:   int(cores),
-		QemuSockets: int(sockets),
+		Cores:       int(cores),
+		Sockets:     int(sockets),
 		Disk:        VmDevices{},
 		Net:         VmDevices{},
 	}
 
 	if vmConfig["ide2"] != nil {
 		isoMatch := rxIso.FindStringSubmatch(vmConfig["ide2"].(string))
-		config.QemuIso = isoMatch[1]
+		config.Iso = isoMatch[1]
 	}
 
 	if _, isSet := vmConfig["ciuser"]; isSet {

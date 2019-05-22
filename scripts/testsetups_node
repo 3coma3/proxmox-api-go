@@ -1,0 +1,85 @@
+#!/bin/bash
+
+testsetup_node_getnodelist() {
+    testsetup_simple
+    local result=$?
+
+    # save the node names in a global array
+    local line
+    for line in "${testoutput[@]}"; do
+        node=$(sed -rn 's/\"node\": \"(.*)\",/\1/p' <<< "$line")
+        [[ -n $node ]] && nodes+=($node)
+    done
+
+    # sort the array
+    local oldifs=$IFS
+    IFS=$'\n' nodes=($(sort <<< "${nodes[*]}")) IFS=$oldifs
+
+    return $result
+}
+
+testsetup_node_findnode() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'manual intervention needed'
+    echo "Enter node names to find, an empty line ends the test"
+
+    while promptNode 'Find node (enter to finish): ' " " 0; do
+        runAction $target $selectednode
+    done
+
+    setActionResult $target MANUALLY_TESTED
+}
+
+testsetup_node_check() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'checking all detected nodes'
+
+    local result node
+    for node in "${nodes[@]}"; do
+        runAction $target $node
+        (( result=$? )) && break
+    done
+
+    setActionResult $target $result
+}
+
+testsetup_node_getinfo() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'manual intervention needed'
+    echo "Enter node names to get info, an empty line ends the test"
+
+    while promptNode 'Get node info (enter to finish): ' " " 0; do
+        runAction $target "$selectednode"
+    done
+
+    setActionResult $target MANUALLY_TESTED
+}
+
+testsetup_node_createvolume() {
+    # local runcount=$1 ; shift
+    # local target=${FUNCNAME##*${setup_prefix}}
+    # local flags="-vmid ${vmid[$((runcount-1))]}"
+    # local arguments="$selectednode_vm"
+
+    # runAction $flags $target $arguments <<< $(diskjson test-createvmdisk 2)
+    # setActionResult $target $?
+    testsetup_stub
+}
+
+testsetup_node_deletevolume() {
+    # local runcount=$1 ; shift
+    # local target=${FUNCNAME##*${setup_prefix}}
+    # local vmid="${vmid[$((runcount-1))]}"
+    # local flags="-vmid $vmid"
+    # local arguments="$selectednode local-lvm:vm-$vmid-disk-1,local-lvm:vm-$vmid-test-createvmdisk"
+
+    # testsetup_simple $flags $target $arguments
+    testsetup_stub
+}
+
+testsetup_node_getstorageandvolumename() {
+    testsetup_stub
+}

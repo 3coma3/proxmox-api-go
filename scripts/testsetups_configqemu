@@ -1,0 +1,64 @@
+#!/bin/bash
+
+testsetup_configqemu_newconfigqemufromjson() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'Generating new VM configuration'
+    selectedid_vm=$selectedid
+    vms[$selectedid_vm]='vm'
+    vmnames[$selectedid_vm]="test-createvm${runcount}"
+    vmconfigs[$selectedid_vm]=$(vmJson ${vmnames[$selectedid_vm]})
+
+    runAction $target <<< ${vmconfigs[$selectedid_vm]}
+    setActionResult $target $?
+}
+
+testsetup_configqemu_createvm() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    debugMessage 'Manual intervention needed'
+    cat<<EOF
+These are the nodes I got from the previous node_getnodelist test: ${nodes[@]}
+At which node should I attempt to create the VMs?
+EOF
+
+    promptNode "Enter node name (${nodes[0]}) " "${nodes[0]}" 1
+    selectednode_vm=$selectednode
+
+    local flags="-vmid $selectedid_vm"
+    runAction $flags $target $selectednode_vm <<< ${vmconfigs[$selectedid_vm]}
+    setActionResult $target $?
+}
+
+testsetup_configqemu_newconfigqemufromapi() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags="-vmid $selectedid_vm"
+    runAction $flags $target
+    setActionResult $target $?
+}
+
+testsetup_configqemu_createnetparams() {
+    local target=${FUNCNAME##*${setup_prefix}}
+    testsetup_simple <<EOF
+{
+  "model": "virtio",
+  "bridge": "vmbr0",
+  "hwaddr": "$(randomMacAddress)" 
+}
+EOF
+}
+
+testsetup_configqemu_createdisksparams() {
+    testsetup_stub
+}
+
+
+testsetup_configqemu_updateconfig() {
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}}
+    local vmid="vmid${runcount}" vmname="vmname${runcount}"
+    local arguments="${!vmid}" 
+    testsetup_simple $target $arguments< <(vmJson ${!vmname}-updateconfig)
+}

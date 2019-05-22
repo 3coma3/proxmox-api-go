@@ -3,6 +3,7 @@ package test
 import (
 	"github.com/3coma3/proxmox-api-go/proxmox"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 )
@@ -68,6 +69,7 @@ func init() {
 			if media, containsFile := deviceConfMap["media"]; containsFile && media == "disk" {
 
 				fullDiskName := deviceConfMap["file"].(string)
+				fmt.Println("fullDiskName: " + fullDiskName)
 
 				// this map is specially prepared for the disk creation
 				diskParams := map[string]interface{}{
