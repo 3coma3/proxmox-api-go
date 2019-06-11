@@ -8,7 +8,7 @@ testsetup_configlxc_newconfiglxcfromjson() {
     selectedid_ct=$selectedid
     vms[$selectedid_ct]='ct'
     vmnames[$selectedid_ct]="test-createct${runcount}"
-    vmconfigs[$selectedid_ct]=$(ctJson ${vmnames[$selectedid_ct]})
+    vmconfigs[$selectedid_ct]=$(ctCreateJson ${vmnames[$selectedid_ct]})
 
     runAction $target <<< ${vmconfigs[$selectedid_ct]}
     setActionResult $target $?
@@ -32,6 +32,26 @@ EOF
     setActionResult $target $?
 }
 
+testsetup_configlxc_updateconfig() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    echo "Altering configuration of all created CTs"
+
+    local flags result
+    for vmid in "${!vms[@]}"; do
+        [[ "${vms[$vmid]}" == "vm" ]] && continue
+
+        flags="-vmid ${vmid}"
+        runAction $flags $target $arguments< <(ctUpdateConfigJson "${vmnames[$vmid]}-updated")
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+
+    return $result
+}
+
+
 testsetup_configlxc_newconfiglxcfromapi() {
     local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
     local flags="-vmid $selectedid_ct"
@@ -53,4 +73,23 @@ testsetup_configlxc_creatempparams() {
     testsetup_stub
     # local target=${FUNCNAME##*${setup_prefix}}
     # testsetup_simple $target < <(diskJson test-createqemudisksparams 2)
+}
+
+testsetup_configlxc_updateconfig() {
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    echo "Altering configuration of all created CTs"
+
+    local flags result
+    for vmid in "${!vms[@]}"; do
+        [[ "${vms[$vmid]}" == "vm" ]] && continue
+
+        flags="-vmid ${vmid}"
+        runAction $flags $target $arguments< <(ctUpdateConfigJson "${vmnames[$vmid]}-updated" | tee /dev/tty)
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+
+    return $result
 }

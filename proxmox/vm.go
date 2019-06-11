@@ -379,8 +379,14 @@ func (vm *Vm) CreateSnapshot(snapParams map[string]interface{}) (exitStatus stri
 
 	reqbody := ParamsToBody(snapParams)
 	url := fmt.Sprintf("/nodes/%s/%s/%d/snapshot", vm.node.name, vm.vmtype, vm.id)
-	if resp, err := GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
-		if taskResponse, err := ResponseJSON(resp); err == nil {
+
+	var (
+		resp         *http.Response
+		taskResponse map[string]interface{}
+	)
+
+	if resp, err = GetClient().session.Post(url, nil, nil, &reqbody); err == nil {
+		if taskResponse, err = ResponseJSON(resp); err == nil {
 			exitStatus, err = GetClient().WaitForCompletion(taskResponse)
 		}
 	}
@@ -574,64 +580,63 @@ func (vm *Vm) SendKeysString(keys string) (err error) {
 	if vmStatus, err := vm.GetStatus(); err == nil {
 		if vmStatus["status"] == "stopped" {
 			err = errors.New("VM must be running first")
-		}
-	} else {
-
-		for _, r := range keys {
-			c := string(r)
-			lower := strings.ToLower(c)
-			if c != lower {
-				c = "shift-" + lower
-			} else {
-				switch c {
-				case "!":
-					c = "shift-1"
-				case "@":
-					c = "shift-2"
-				case "#":
-					c = "shift-3"
-				case "$":
-					c = "shift-4"
-				case "%%":
-					c = "shift-5"
-				case "^":
-					c = "shift-6"
-				case "&":
-					c = "shift-7"
-				case "*":
-					c = "shift-8"
-				case "(":
-					c = "shift-9"
-				case ")":
-					c = "shift-0"
-				case "_":
-					c = "shift-minus"
-				case "+":
-					c = "shift-equal"
-				case " ":
-					c = "spc"
-				case "/":
-					c = "slash"
-				case "\\":
-					c = "backslash"
-				case ",":
-					c = "comma"
-				case "-":
-					c = "minus"
-				case "=":
-					c = "equal"
-				case ".":
-					c = "dot"
-				case "?":
-					c = "shift-slash"
+		} else {
+			for _, r := range keys {
+				c := string(r)
+				lower := strings.ToLower(c)
+				if c != lower {
+					c = "shift-" + lower
+				} else {
+					switch c {
+					case "!":
+						c = "shift-1"
+					case "@":
+						c = "shift-2"
+					case "#":
+						c = "shift-3"
+					case "$":
+						c = "shift-4"
+					case "%%":
+						c = "shift-5"
+					case "^":
+						c = "shift-6"
+					case "&":
+						c = "shift-7"
+					case "*":
+						c = "shift-8"
+					case "(":
+						c = "shift-9"
+					case ")":
+						c = "shift-0"
+					case "_":
+						c = "shift-minus"
+					case "+":
+						c = "shift-equal"
+					case " ":
+						c = "spc"
+					case "/":
+						c = "slash"
+					case "\\":
+						c = "backslash"
+					case ",":
+						c = "comma"
+					case "-":
+						c = "minus"
+					case "=":
+						c = "equal"
+					case ".":
+						c = "dot"
+					case "?":
+						c = "shift-slash"
+					}
 				}
-			}
 
-			if _, err = vm.MonitorCmd("sendkey " + c); err != nil {
-				break
-			}
+				if _, err = vm.MonitorCmd("sendkey " + c); err != nil {
+					break
+				}
 
-			time.Sleep(100)
+				time.Sleep(100)
+			}
 		}
 	}
 

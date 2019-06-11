@@ -151,7 +151,7 @@ func init() {
 		_, vm := newClientAndVmr(options)
 
 		snapParams := map[string]interface{}{}
-		if err = json.NewDecoder(os.Stdin).Decode(&snapParams); err == nil {
+		if err = json.NewDecoder(os.Stdin).Decode(&snapParams); err != nil {
 			return
 		}
 

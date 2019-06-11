@@ -6,25 +6,30 @@
 # needed for sequencing, combination, dependency, and interaction with the shell.
 #
 # Their names must begin with $setup_prefix, followed by the name of an action
-# defined in the testActions map in the Go code. The variable $setup_prefix is
-# defined in the CONFIGURATION section in runtests.sh
+# defined in the testActions Go map.  $setup_prefix is defined in CONFIGURATION,
+# in runtests.sh
 #
 # They generally:
-#   - receive currently a single parameter from runSequence, the number of times
-#     this setup handler is being called
+#   - receive (currently) a single parameter from runSequence: the number of
+#     times each one has been called
 #   - obtain the target action name as a parameter or by reading their own name
 #   - prepare any inputs and perform any interactions needed before the call
-#   - run the target action and capture its output for further manipulation in
-#     the global testoutput[] array (or fake the run, or omit it)
-#   - read any outputs and perform any interactions needed after a call
+#   - run the target action through runAction (or fake the run, or omit it)
+#   - read any outputs and perform any interactions needed after a test action
 #   - call setActionResult to conclude something about what was tested
 #   - return back the setActionResult exit status
 
 
 # Generic setups - these capture common behaviour
 
-testsetup_default() {
+testsetup_null() {
     return
+}
+
+testsetup_stub() {
+    local target=${FUNCNAME[1]##*${setup_prefix}}
+    debugMessage "SETUP TARGET: $target"
+    setActionResult $target STUB
 }
 
 # FIXME: be able to accept target and flags from handlers
@@ -41,7 +46,7 @@ testsetup_simple() {
     setActionResult $target $?
 }
 
-testsetup_loop_all() {
+testsetup_loop_vm() {
     local target="${FUNCNAME[1]##*${setup_prefix}}" ;  debugMessage "SETUP TARGET: $target"
     local message="$1"
 
@@ -49,7 +54,6 @@ testsetup_loop_all() {
     local flags result
     for vmid in "${!vms[@]}"; do
         flags="-vmid ${vmid}"
-
         runAction $flags $target
         result=$?
         setActionResult $target $result
@@ -58,10 +62,34 @@ testsetup_loop_all() {
     return $result
 }
 
-testsetup_stub() {
-    local target=${FUNCNAME[1]##*${setup_prefix}}
-    debugMessage "SETUP TARGET: $target"
-    setActionResult $target STUB
+testsetup_loop_node() {
+    local target="${FUNCNAME[1]##*${setup_prefix}}" ;  debugMessage "SETUP TARGET: $target"
+    local message="$1"
+
+    [[ -n $message ]] && echo "$message"
+    local result node
+    for node in "${nodes[@]}"; do
+        runAction $target $node
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+    return $result
+}
+
+testsetup_loop_storage() {
+    local target="${FUNCNAME[1]##*${setup_prefix}}" ;  debugMessage "SETUP TARGET: $target"
+    local message="$1"
+
+    [[ -n $message ]] && echo "$message"
+    local result storage
+    for storage in "${storages[@]}"; do
+        runAction $target $storage
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+    return $result
 }
 
 

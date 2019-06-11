@@ -1,128 +1,78 @@
 #!/bin/bash
 
 testsetup_session_paramstobody() {
-    local target=${FUNCNAME##*${setup_prefix}}
-    testsetup_simple $target< <(vmJson test-paramstobody)
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    runAction $target< <(vmCreateJson test-paramstobody)
 }
 
 testsetup_session_request() {
-    local target=${FUNCNAME##*${setup_prefix}}
-
-    local line endpoint='/storage' params='type=lvmthin'
-
-    cat<<EOF
-For this test you can supply a REST endpoint and parameters to issue a GET request
-if you press enter here I will use these defaults:
-
-endpoint: $endpoint
-parameters: $params
-
-The parameter list should be a comma delimited list of key=value pairs, with no spaces
-
-I will use the defaults if nothing is entered after 20 seconds
-EOF
-
-    read -t 20 -p "What endpoint should I query? ($endpoint) " line
-    [[ -n "$line" ]] && {
-      endpoint="$line"
-      read -t 20 -p "What parameter should I send in the query? ($params) " line
-      [[ -n "$line" ]] && params="$line"
-    }
-
-    local arguments="$endpoint $params"
-    testsetup_simple $target $arguments
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    promptEndpoint
+    local arguments="$selectedendpoint $selectedendpointparams"
+    runAction $target $arguments
+    setActionResult $target $result
 }
 
 testsetup_session_requestjson() {
-    local target=${FUNCNAME##*${setup_prefix}}
-
-    cat<<EOF
-This test works the same as the previous one, and has the same defaults
-
-I will use the defaults if nothing is entered after 20 seconds.
-EOF
-
-    local line endpoint='/storage' params='type=lvmthin'
-    read -t 20 -p "What endpoint should I query? ($endpoint) " line
-    [[ -n "$line" ]] && {
-      endpoint="$line"
-      read -t 20 -p "What parameter should I send in the query? ($params) " line
-      [[ -n "$line" ]] && params="$line"
-    }
-
-    local arguments="$endpoint $params"
-    testsetup_simple $target $arguments
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    promptEndpoint
+    local arguments="$selectedendpoint $selectedendpointparams"
+    runAction $target $arguments
+    setActionResult $target $result
 }
 
 testsetup_session_get() {
-    local target=${FUNCNAME##*${setup_prefix}}
-
-    cat<<EOF
-This test works the same as the previous one, and has the same defaults
-
-I will use the defaults if nothing is entered after 20 seconds.
-EOF
-
-    local line endpoint='/storage' params='type=lvmthin'
-    read -t 20 -p "What endpoint should I query? ($endpoint) " line
-    [[ -n "$line" ]] && {
-      endpoint="$line"
-      read -t 20 -p "What parameter should I send in the query? ($params) " line
-      [[ -n "$line" ]] && params="$line"
-    }
-
-    local arguments="$endpoint $params"
-    testsetup_simple $target $arguments
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    promptEndpoint
+    local arguments="$selectedendpoint $selectedendpointparams"
+    runAction $target $arguments
+    setActionResult $target $result
 }
 
 testsetup_session_getjson() {
-    local target=${FUNCNAME##*${setup_prefix}}
-
-    cat<<EOF
-This test works the same as the previous one, and has the same defaults
-
-I will use the defaults if nothing is entered after 20 seconds.
-EOF
-
-    local line endpoint='/storage' params='type=lvmthin'
-    read -t 20 -p "What endpoint should I query? ($endpoint) " line
-    [[ -n "$line" ]] && {
-      endpoint="$line"
-      read -t 20 -p "What parameter should I send in the query? ($params) " line
-      [[ -n "$line" ]] && params="$line"
-    }
-
-    local arguments="$endpoint $params"
-    testsetup_simple $target $arguments
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    promptEndpoint
+    local arguments="$selectedendpoint $selectedendpointparams"
+    runAction $target $arguments
+    setActionResult $target $result
 }
 
 testsetup_session_post() {
-    local target=${FUNCNAME##*${setup_prefix}}
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
     cat<<EOF
-For this and the following tests I will create a test pool using POST requests,
+For the following tests I will create a test pool using POST requests,
 then add and remove VMs to/from the pool using PUT, and finally DELETE the pool.
 
-You can enter a name for this pool or use the default name.
+You can enter a name for this pool or use the default name
 EOF
 
     local line
-    read -t 20 -p "Enter a name for the test pool ($testpoolname) " line
-      [[ -n "$line" ]] && testpoolname="$line"
+    read -t 20 -p "Enter a name for the test pool ($selectedpool) " line
+    [[ -n "$line" ]] && selectedpool="$line"
 
-    local arguments="$testpoolname"
-    testsetup_simple $target $arguments
+    local arguments="$selectedpool"
+    runAction $target $arguments
+    setActionResult $target $result
 }
 
 testsetup_session_put() {
-    local target=${FUNCNAME##*${setup_prefix}}
-    local flags="-vmid ${vmid[$((runcount-1))]}"
-    local arguments="$testpoolname"
-    testsetup_simple $flags $target $arguments
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags arguments="$selectedpool"
+    for vmid in "${!vms[@]}"; do
+        flags="-vmid ${vmid}"
+        runAction $flags $target $arguments
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
 }
 
 testsetup_session_delete() {
-    local target=${FUNCNAME##*${setup_prefix}}
-    local arguments="$testpoolname"
-    testsetup_simple $target $arguments
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local arguments="$selectedpool"
+    runAction $target $arguments
+    setActionResult $target $result
 }

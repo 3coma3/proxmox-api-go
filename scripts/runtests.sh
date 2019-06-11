@@ -2,12 +2,12 @@
 
 # REQUIRES BASH 4.3+
 
-# DESCRIPTION AND USE
+# DESCRIPTION AND USE ----------------------------------------------------------
 
 # This script can be used to call the proxmox-api-go binary with the PM_API_URL,
 # PM_USER and PM_PASS variables set in the environment, to run a specific test
 # while forwarding the command line to the binary.
-#
+
 # To use the script in this way, run it like this:
 #
 # runtests.sh <proxmox-api-go switches> <action> <action arguments>
@@ -25,29 +25,33 @@
 # The action arguments depend on the specific action to test.
 
 # Alternatively, this script can attempt to run many test actions by following
-# a sequence that combines some tests to work together, like for example
-# creating a VM, querying information about and changing the VM, then deleting
-# it.
+# a suite that combines some tests to work together, like for example creating a
+# virtual machine, querying information about and changing it, then deleting it.
+
+# To use the script in this way, run it either specifying a valid suite name
+# (one of the strings after the underscore in the files named suite_* in the
+# scripts subdirectory). If no suite name is specified (empty arguments), the
+# suite pointed to by the global $defaultsuite is run.
 #
-# To use the script in this way, run it without arguments:
-#
-# runtests.sh
+# runtests.sh [suitename]
 
 
-# SHELL DIRECTIVES
+# SHELL DIRECTIVES -------------------------------------------------------------
+
 # this parser directive must be always at the top
 # enable extended globs for pattern matching
 shopt -s extglob
 
 
-# GLOBAL DATA
+# GLOBAL DATA ------------------------------------------------------------------
+
 declare scriptdir="$(dirname "$0")"
 
-# test setups and their results
-declare -a sequence
+# suite of test setups and their results
+declare -a suite
 declare -A results
 
-# to save the last test output (see for example testsetup_capture)
+# to save the last test output - see runAction() below and the test setups
 declare testoutput
 
 # columns for error codes and messages
@@ -67,250 +71,28 @@ declare selectednode selectednode_vm selectednode_ct
 declare -a storages
 declare selectedstorage selectedstorage_vm selectedstorage_ct
 
+# for session request tests
+declare selectedendpoint='/storage' selectedendpointparams='type=lvmthin'
+
 # for session POST/PUT/DELETE tests
-declare testpoolname='testpool'
+declare selectedpool='testpool'
 
-# for gettaskexitstatus
-declare UPID
-
-# error codes and messages
-declare -A exitcodes
-declare -a exitmsgs
+# for gettaskexitstatus tests
+declare -a UPIDs
 
 
-# CONFIGURATION - modify these values as needed
-test_binary="$scriptdir/../proxmox-api-go"
-test_default_flags='-debug -insecure'
-setup_prefix='testsetup_'
+# CONFIGURATION - modify these values as needed --------------------------------
+
 export PM_API_URL='https://10.40.0.147:8006/api2/json' PM_USER='root@pam' PM_PASS
 
-
-# CODE
-
-# Test sequence functions
-
-# Add rows with names of test actions to the global sequence[] array
-# There may be dedicated "setup handler" functions for the target actions, which
-# might add extra logic to the test
-# See the included testsetups file and the runSequence function below.
-# Entries called "end" cause the sequence to be ended at that point
-prepareSequence() {
-    debugMessage "Preparing the test sequence:"
-
-    sequence=()
-    results=()
-
-    local target
-    while read entry; do
-        [[ -n "$entry" ]] && {
-            target="$(xargs <<< $entry)"
-            sequence+=("$target")
-            setActionResult "$target" NOT_TESTED
-        }
-    done<<EOF
-
-    node_getnodelist
-    node_check
-    node_findnode
-    node_getinfo
-
-    storage_getstoragelist
-    storage_check
-    storage_findstorage
-    storage_getinfo
-
-    vm_getnextvmid
-    configlxc_newconfiglxcfromjson
-    configlxc_creatempparams
-    configlxc_createnetparams
-    configlxc_createvm
-    configlxc_newconfiglxcfromapi
-
-    vm_getnextvmid
-    configqemu_newconfigqemufromjson
-    configqemu_createvm
-    configqemu_createdisksparams
-    configqemu_createnetparams
-    configqemu_newconfigqemufromapi
-
-    vm_getmaxvmid
-    vm_getvmlist
-    vm_check
-    vm_findvm
-    vm_getinfo
-
-    node_createvolume
-    node_deletevolume
-    node_getstorageandvolumename
-    vm_movedisk
-    vm_resizedisk
-    vmdevice_parseconf
-    vmdevice_parsesubconf
-
-    vm_getstatus
-    vm_start
-    vm_reset
-    vm_suspend
-    vm_resume
-    vm_shutdown
-    vm_waitforshutdown
-    vm_stop
-
-end
-    vm_monitorcmd
-    vm_sendkeysstring
-    vm_sshforwardusernet
-    vm_removesshforwardusernet
-    vm_getagentnetworkinterfaces
-    vm_getspiceproxy
-
-    vm_getconfig
-    vm_createsnapshot
-    vm_getsnapshotlist
-    configlxc_updateconfig
-    configqemu_updateconfig
-    vm_rollback
-    vm_deletesnapshot
-
-    vm_clone
-    vm_migrate
-    vm_setstatus
-    vm_createbackup
-    vm_createtemplate
-    vm_delete
-    client_gettaskexitstatus
-
-    session_login
-    session_paramstobody
-    session_responsejson
-    session_request
-    session_requestjson
-    session_get
-    session_getjson
-    session_post
-    session_put
-    session_delete
-end
-EOF
-}
-
-runSequence() {
-    debugMessage "Running the tests"
-
-    local target setup
-    local -A setups=()
-
-    # list the test setup handler functions and the times they have been called
-    while read setup; do
-        setups[$setup]=0
-    done< <(declare -f | sed -rn "s/^(${setup_prefix}.*) \(\)/\1/p")
-
-    for target in "${sequence[@]}"; do
-        case "$target" in
-        end)
-            debugMessage "End test sequence"
-            break
-            ;;
-          *)
-            echo -e "\nLooking for next action"
-            setup=${setup_prefix}${target}
-
-            # if there's a setup handler function for the target, call it
-            # otherwise call a default handler
-            if [[ -v setups[$setup] ]]; then
-                echo -e "Found setup for action: \"$target\""
-                $setup $(( ++setups[$setup] )) $@
-            else
-                echo -e "Calling default handler for action: \"$target\""
-                ${setup_prefix}simple $target $@
-            fi
-        esac
-    done
-}
-
-printSequence() {
-    debugMessage "This is the test sequence:"
-
-    # filter out
-    local filter='^\(end\|somethingelse\)'
-
-    {
-        echo "Action:Result"
-        for action in "${sequence[@]}"; do
-            local result="${results[$action]}"
-            local output="${action}:$(exitCodeName $result)"
-            local msg="${exitmsgs[$result]}"
-            [[ -n "$msg" ]] && output="$output ($msg)"
-            echo $output
-        done | grep -v "$filter" | sort
-    } | column -ts:
-}
-
-# all non-stub handlers will probably call this at some point
-runAction() {
-    echo 'Running the test action and capturing output'
-
-    shopt -s lastpipe
-    local line
-    while read -t 1 line; do
-        echo "$line"
-    done | "$test_binary" $test_default_flags $@ 2>&1 | readarray -t testoutput< <(cat)
-    local target_exit_status=${PIPESTATUS[1]}
-
-    for line in "${testoutput[@]}"; do
-        echo "$line"
-    done
-
-    return $target_exit_status
-}
+test_default_flags='-debug -insecure'       # see proxmox-api-go documentation
+defaultsuite="full"                         # see scripts/suite_*
+setup_prefix='testsetup_'                   # see scripts/testsetups* and here
+defaultsetup="${setup_prefix}simple"        # see scripts/testsetups
+test_binary="$scriptdir/../proxmox-api-go"
 
 
-# Exit codes and messages
-
-# get code name by id
-exitCodeName() {
-    for code in "${!exitcodes[@]}"; do
-        (( ${exitcodes[$code]} == $1 )) && {
-            echo $code
-        }
-    done
-}
-
-# add row to exitcodes and exitmsgs
-addExitCode() {
-    local code=$1 name=$2 ; shift 2 ; local msg="$@"
-    exitcodes[$name]=$code
-    exitmsgs[$code]="$msg"
-}
-
-# rows are added from here at the start of the script
-prepareExitCodes() {
-    addExitCode 0 PASSED
-    addExitCode 1 FAILED
-    addExitCode 2000 NOT_TESTED
-    addExitCode 2001 MANUALLY_TESTED "the test was conducted by manual intervention"
-    addExitCode 2002 STUB "setup handler is a stub"
-}
-
-# adds row in the global results table with some result / exit code
-#
-# exit code:
-# $result if it is numeric
-# exitcodes[$result] if it is symbolic
-setActionResult() {
-    local action=$1 result=$2
-
-    # result might be passed as numeric or symbolic name
-    re='^[0-9]+$'
-    if [[ $result =~ $re ]]; then
-        results[$action]=$result
-    else
-        results[$action]=${exitcodes[$result]}
-    fi
-
-    return ${results[$action]}
-}
-
+# CODE -------------------------------------------------------------------------
 
 # JSON template setup helpers
 
@@ -318,11 +100,10 @@ setActionResult() {
 # parameters:
 # $1 - byte delimiter, default ':'
 randomMacAddress() {
-    local delimiter="${1:-:}"
-    local hexchars="0123456789ABCDEF"
-    local mac=''
-    for i in {1..12} ; do
-        mac=$mac${hexchars:$(( $RANDOM % 16 )):1}
+    local delimiter="${1:-:}" hex="0123456789ABCDEF" bytes=6 mac=''
+
+    while (( bytes-- )); do
+        mac=$mac${hex:$(( $RANDOM % 16 )):1}${hex:$(( $RANDOM % 16 )):1}
     done
     printf '%012X\n' "$(( 0x$mac & 0xFEFFFFFFFFFF | 0x020000000000 ))" \
     | sed -re 's/(..)/\1'$delimiter'/g' -e 's/(.*).$/\1/'
@@ -351,7 +132,7 @@ EOF
 # outputs JSON configuration for CT creation
 # parameters:
 # $1 - CT name, default 'testct'
-ctJson() {
+ctCreateJson() {
     local ctname="${1:-testct}"
     cat<<EOF
 {
@@ -378,7 +159,7 @@ ctJson() {
     "ostype": "ubuntu",
     "rootfs": {
         "storage": "local-lvm",
-        "size": "8G",
+        "size": "5G",
         "acl": true
     },
     "searchdomain": "test.com",
@@ -387,10 +168,42 @@ ctJson() {
 EOF
 }
 
-# outputs JSON configuration for Qemu VM creation
+# outputs JSON configuration for CT reconfiguration
+# parameters:
+# $1 - CT name, default 'testct'
+ctUpdateConfigJson() {
+    local ctname="${1:-testct}"
+    cat<<EOF
+{
+    "hostname": "$ctname",
+    "console": true,
+    "cores": 4,
+    "cpuunits": 20248,
+    "memory": 2048,
+    "ostype": "ubuntu",
+    "protection": false,
+    "swap": 1024,
+    "tty": 2,
+    "arch": "amd64",
+    "nameserver": "1.1.1.1",
+    "net": {
+        "1": {
+        "name": "eth1",
+        "bridge": "vmbr0",
+        "tag": "26",
+        "type":"veth",
+        "hwaddr": "$(randomMacAddress)"
+        }
+    },
+    "searchdomain": "test2.com"
+}
+EOF
+}
+
+# outputs JSON for Qemu VM creation
 # parameters:
 # $1 - VM name, default 'testvm'
-vmJson() {
+vmCreateJson() {
     local vmname="${1:-testvm}"
     cat<<EOF
 {
@@ -400,7 +213,7 @@ vmJson() {
     "ostype": "l26",
     "cores": 1,
     "sockets": 1,
-    "agent": "enabled=0",
+    "agent": "enabled=1",
     "iso": "local:iso/uccorelinux.iso",
     "disk": {
     "0": {
@@ -423,8 +236,45 @@ vmJson() {
 EOF
 }
 
+# outputs JSON for Qemu VM reconfiguration
+# parameters:
+# $1 - VM name, default 'testvm'
+vmUpdateConfigJson() {
+    local vmname="${1:-testvm}"
+    cat<<EOF
+{
+    "name": "$vmname",
+    "onboot": false,
+    "memory": 3072,
+    "ostype": "l26",
+    "cores": 4,
+    "sockets": 2,
+    "agent": "enabled=0",
+    "delete": "ide2",
+    "network": {
+        "0": {
+            "model": "e1000",
+            "bridge": "vmbr0",
+            "macaddr": "$(randomMacAddress)" 
+        }
+    }
+}
+EOF
+}
+
 
 # Other helpers
+
+# prompts for the PM_PASS variable for the Go code if it's unset
+promptPmPass() {
+    if [[ -z "$PM_PASS" ]]; then
+        cat<<EOF
+To avoid entering the password at each test you can enter it at this point
+If you press enter here, the Go code will ask for the password each time it runs
+EOF
+        read -sp "Enter the password for $PM_USER: " PM_PASS
+    fi
+}
 
 # prompts for node selection
 # parameters:
@@ -480,6 +330,32 @@ promptStorage() {
     return 0
 }
 
+# prompts for endpoint selection
+promptEndpoint() {
+    local line 
+
+    debugMessage 'Manual intervention needed'
+    cat<<EOF
+For this test you can supply a REST endpoint and parameters to issue a GET request
+if you press enter here I will use these defaults:
+
+endpoint: $selectedendpoint
+parameters: $selectedendpointparams
+
+The parameter list should be a comma delimited list of key=value pairs, with no spaces
+
+I will use the defaults if nothing is entered after 20 seconds
+EOF
+
+    read -t 20 -p "What endpoint should I query? ($selectedendpoint) " line
+    [[ -n "$line" ]] && {
+      selectedendpoint="$line"
+      read -t 20 -p "What parameter should I send in the query? ($params) " line
+      [[ -n "$line" ]] && selectedendpointparams="$line"
+    }
+
+}
+
 debugMessage() {
     local msg="$1"
     cat<<EOF
@@ -502,26 +378,184 @@ EOF
 }
 
 
+# Test suite functions
+
+# Add rows with names of test actions to the global suite[] and results[] arrays
+# There may be dedicated "setup handler" functions for the target actions, which
+# add extra logic to the test. See the included testsetups files and the rest of
+# the suite-related functions.
+prepareSuite() {
+    debugMessage "Preparing the test suite"
+
+    local selectedsuite="$1"
+
+    suite=()
+    results=()
+
+    local target line
+    while read line; do
+        case "$line" in
+            # comments and blank lines
+            @(''|#*)) continue ;;
+            # end parsing
+                 end) break ;;
+            # other lines: trim whitespace, set rows
+                   *) target="$(xargs <<< $line)"
+                      suite+=("$target")
+                      setActionResult "$target" NOT_TESTED ;;
+        esac
+    done< "$scriptdir/suite_${selectedsuite}"
+}
+
+printSuite() {
+    debugMessage "This is the test suite"
+
+    # filter out
+    local filter='^\(comment\|somethingelse\)'
+
+    local action result output step=1
+
+    {
+        echo "Step:Action:Result"
+        for action in "${suite[@]}"; do
+            result="${results[$action]}"
+            output="$((step++)):${action}:$(exitCodeName $result)"
+            [[ -n "${exitmsgs[$result]}" ]] && output="$output (${exitmsgs[$result]})"
+            echo $output
+        done | grep -v "$filter" | sort -n
+    } | column -ts:
+}
+
+runSuite() {
+    debugMessage "Running the tests"
+
+    local -A setups=()
+    local target setup
+
+    # list the test setup handler functions and the times they have been called
+    while read setup; do
+        setups[$setup]=0
+    done< <(declare -f | sed -rn "s/^(${setup_prefix}.*) \(\)/\1/p")
+
+    for target in "${suite[@]}"; do
+        echo -e "\n$FUNCNAME: Looking for next action"
+
+        setup="${setup_prefix}${target}"
+        
+
+        if [[ -v setups[$setup] ]]; then
+            echo -e "$FUNCNAME: Found setup for action: \"$target\""
+            $setup $(( ++setups[$setup] )) $@
+        else
+            echo -e "$FUNCNAME: Calling default handler for action: \"$target\""
+            $defaultsetup $target $@
+        fi
+    done
+}
+
+# all non-stub handlers will probably call this at some point
+# FIXME: add comments for this function
+runAction() {
+    echo -e "\n$FUNCNAME: Running the test action and capturing output"
+
+    shopt -s lastpipe
+    local line
+    while read -t 1 line; do
+        echo "$line"
+    done | "$test_binary" $test_default_flags $@ 2>&1 | readarray -t testoutput
+    local target_exit_status=${PIPESTATUS[1]}
+
+    echo "$FUNCNAME: This is the test output:"
+    for line in "${testoutput[@]}"; do
+        echo "$line"
+    done
+
+    return $target_exit_status
+}
+
+# adds row in the global results table with some result / exit code
+# utimately gets passed the target exit status gotten from runAction
+#
+# exit code:
+# $result if it is numeric
+# exitcodes[$result] if it is symbolic
+setActionResult() {
+    local action=$1 result=$2
+
+    # result might be passed as numeric or symbolic name
+    re='^[0-9]+$'
+    if [[ $result =~ $re ]]; then
+        results[$action]=$result
+    else
+        results[$action]=${exitcodes[$result]}
+    fi
+
+    return ${results[$action]}
+}
+
+
+# Exit codes and messages
+
+# get code name by id
+exitCodeName() {
+    for code in "${!exitcodes[@]}"; do
+        (( ${exitcodes[$code]} == $1 )) && {
+            echo $code
+        }
+    done
+}
+
+# add row to exitcodes and exitmsgs
+addExitCode() {
+    local code=$1 name=$2 ; shift 2 ; local msg="$@"
+    exitcodes[$name]=$code
+    exitmsgs[$code]="$msg"
+}
+
+# exit name/code/msg rows are added at main() using this function
+prepareExitCodes() {
+    addExitCode 0 PASSED
+    addExitCode 1 FAILED
+    addExitCode 2000 NOT_TESTED
+    addExitCode 2001 MANUALLY_TESTED "the test was conducted by manual intervention"
+    addExitCode 2002 STUB "setup handler is a stub"
+}
+
+
+# Entry code
+
+main() {
+    local suite=$defaultsuite
+
+    # a first parameter might be allowed to specify a valid suite for suite mode
+    [[ -f "$scriptdir/suite_${1}" ]] && {
+        suite=$1
+        shift
+    }
+
+PM_API_URL | $PM_API_URL
+PM_USER    | $PM_USER
+PM_PASS    | $PM_PASS
+
+EOF
+}
+
+
 # Entry code
 
 main() {
     if (( ! $# )); then
-        startHeader "Sequence mode"
+        startHeader "Suite mode"
 
-        if [[ -z "$PM_PASS" ]]; then
-            cat<<EOF
-To avoid entering the password at each test you can enter it at this point
-If you press enter here, the Go code will ask for the password each time it runs"
-EOF
-            read -sp "Enter the password for $PM_USER: " PM_PASS
-        fi
-
+        promptPmPass
         prepareExitCodes
-        prepareSequence
-        runSequence
-        printSequence
+
+        prepareSuite $suite
+        runSuite
+        printSuite
     else
         startHeader "Forward mode"
+
         "$test_binary" $@
     fi
 }

@@ -1,5 +1,5 @@
 verify storage formats and backends
-reimplement sendkeysstring, add support for enter and other keys
+add support for enter and other keys in sendkeysstring
 unify Config*.CreateVm and Config.*CloneVm, make them return the params map and have the action be managed by Vm.CreateVm/CloneVm
 
 later

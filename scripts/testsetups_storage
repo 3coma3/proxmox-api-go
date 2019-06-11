@@ -19,43 +19,16 @@ testsetup_storage_getstoragelist() {
 }
 
 testsetup_storage_findstorage() {
-    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
-
-    debugMessage 'manual intervention needed'
-    echo "Enter storage names to find, an empty line ends the test"
-
-    while promptStorage 'Find storage (enter to finish): ' " " 0; do
-        runAction $target $selectedstorage
-    done
-
-    setActionResult $target MANUALLY_TESTED
+    testsetup_loop_storage 'Finding all detected storages'
 }
 
 testsetup_storage_check() {
-    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    testsetup_loop_storage 'Checking all detected storages'
 
-    debugMessage 'checking all detected storages'
-
-    local result storage
-    for storage in "${storages[@]}"; do
-        runAction $target $storage
-        (( result=$? )) && break
-    done
-
-    setActionResult $target $result
 }
 
 testsetup_storage_getinfo() {
-    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
-
-    debugMessage 'manual intervention needed'
-    echo "Enter storage names to get info, an empty line ends the test"
-
-    while promptStorage 'Get storage info (enter to finish): ' " " 0; do
-        runAction $target "$selectedstorage"
-    done
-
-    setActionResult $target MANUALLY_TESTED
+    testsetup_loop_storage 'Getting info on all detected storages'
 }
 
 

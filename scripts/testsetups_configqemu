@@ -8,7 +8,7 @@ testsetup_configqemu_newconfigqemufromjson() {
     selectedid_vm=$selectedid
     vms[$selectedid_vm]='vm'
     vmnames[$selectedid_vm]="test-createvm${runcount}"
-    vmconfigs[$selectedid_vm]=$(vmJson ${vmnames[$selectedid_vm]})
+    vmconfigs[$selectedid_vm]=$(vmCreateJson ${vmnames[$selectedid_vm]})
 
     runAction $target <<< ${vmconfigs[$selectedid_vm]}
     setActionResult $target $?
@@ -54,11 +54,21 @@ testsetup_configqemu_createdisksparams() {
     testsetup_stub
 }
 
-
 testsetup_configqemu_updateconfig() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local vmid="vmid${runcount}" vmname="vmname${runcount}"
-    local arguments="${!vmid}" 
-    testsetup_simple $target $arguments< <(vmJson ${!vmname}-updateconfig)
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    echo "Altering configuration of all created VMs"
+
+    local flags result
+    for vmid in "${!vms[@]}"; do
+        [[ "${vms[$vmid]}" == "ct" ]] && continue
+
+        flags="-vmid ${vmid}"
+        runAction $flags $target< <(vmUpdateConfigJson "${vmnames[$vmid]}-updated")
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+
+    return $result
 }

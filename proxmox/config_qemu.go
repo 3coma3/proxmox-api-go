@@ -40,6 +40,8 @@ type ConfigQemu struct {
 	// arrays are hard, support 2 interfaces for now
 	Ipconfig0 string `json:"ipconfig0"`
 	Ipconfig1 string `json:"ipconfig1"`
+
+	Delete string `json:"delete"`
 }
 
 // CreateVm - Tell Proxmox API to make the VM
@@ -129,6 +131,9 @@ func (config ConfigQemu) UpdateConfig(vm *Vm) (err error) {
 	}
 	if config.Ipconfig1 != "" {
 		configParams["ipconfig1"] = config.Ipconfig1
+	}
+	if config.Delete != "" {
+		configParams["delete"] = config.Delete
 	}
 
 	_, err = vm.SetConfig(configParams)

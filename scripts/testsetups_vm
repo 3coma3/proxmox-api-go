@@ -1,41 +1,29 @@
 #!/bin/bash
 
 testsetup_vm_check() {
-    testsetup_loop_all 'checking all created VMs and CTs'
+    testsetup_loop_vm 'Checking all created VMs and CTs'
 }
 
 testsetup_vm_getinfo() {
-    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
-
-    debugMessage 'manual intervention needed'
-    echo "Enter VM/CT ids to get info, an empty line ends the test"
-
-    local vmid=''
-    while read -p 'Get VM/CT info (enter to finish): ' vmid; do
-        [[ -z "$vmid" ]] && break
-        runAction $target $vmid
-    done
-
-    setActionResult $target MANUALLY_TESTED
+    testsetup_loop_vm 'Getting info on all created VMs and CTs'
 }
 
 testsetup_vm_findvm() {
+    local runcount=$1 ; shift
     local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    debugMessage 'manual intervention needed'
-    echo "Enter VM/CT names to find, an empty line ends the test"
+    echo 'Finding all created VMs and CTs'
+    local arguments result
+    for vmid in "${!vms[@]}"; do
+        arguments="${vmnames[$vmid]}"
+        runAction $target $arguments
 
-    local vmname=''
-    while read -p 'Find VM/CT by name (enter to finish): ' vmname; do
-        [[ -z "$vmname" ]] && break
-        runAction $target $vmname
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
     done
-
-    setActionResult $target MANUALLY_TESTED
-}
-
-testsetup_vm_getmaxvmid() {
-    testsetup_stub
+ 
+    return $result
 }
 
 testsetup_vm_getnextvmid() {
@@ -50,89 +38,183 @@ testsetup_vm_getnextvmid() {
     return $result
 }
 
-testsetup_vm_createtemplate() {
-    testsetup_stub
-}
-
 testsetup_vm_clone() {
     local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local flags="-vmid ${vms[$((runcount))]}"
-    local arguments="${vmnames[$((runcount-1))]} $selectednode"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    vmnames[$runcount]="test-clonevm${runcount}"
+    debugMessage 'Manual intervention needed'
+    cat<<EOF
+To which node should I attempt to clone VMs and CTs?
+EOF
+    promptNode "Enter node name (${nodes[0]}) " "${nodes[0]}" 1
 
-    testsetup_simple $flags $target $arguments< <(vmJson ${vmnames[$runcount]})
+    echo 'Cloning all created VMs and CTs'
+
+    local flags arguments vmtype vmname name
+    for vmid in "${!vms[@]}"; do
+        vmtype="${vms[$vmid]}"
+
+        # name for the clone
+        vmname="test-clone${vmtype}${runcount}"
+        name='name'; [[ "$vmtype" == "ct" ]] && name='hostname'
+
+        echo 'Calling testsetup_vm_getnextvmid to get a new VMID for the clone'
+        testsetup_vm_getnextvmid
+
+        flags="-vmid ${selectedid}"
+        arguments="${vmnames[$vmid]}"
+        runAction $flags $target $arguments<<EOF
+{
+    "$name": "$vmname",
+    "bwlimit": 0,
+    "description": "testing $vmtype clone",
+    "full": true,
+    "target": "$selectednode"
+}
+EOF
+ 
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+
+        vms[$selectedid]="$vmtype"
+        vmnames[$selectedid]="$vmname"
+    done
+ 
+    return $result
 }
 
 testsetup_vm_delete() {
     local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local arguments="${vms[$((runcount-1))]}"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    echo 'Running the test action and capturing output'
+    local flags result olines
+    for vmid in "${!vms[@]}"; do
+        flags="-vmid ${vmid}"
+        runAction $flags $target
 
-    local -a output
-    readarray -t output< <("$test_binary" $test_default_flags $target $arguments 2>&1)
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
 
-    local line
-    for line in "${!output[@]}"; do
-      echo "${output[$line]}"
+        unset "vms[$vmid]"
+        unset "vmnames[$vmid]"
+        unset "vmconfigs[$vmid]"
+
+        # set UPID for gettaskexitstatus
+        olines=${#testoutput[*]}
+        status="${testouput[$olines]}"
+        [[ "${status##*: }" == "true" ]] && {
+            UPIDs+=("$(sed -r 's/^.*\"(UPID[^"]+)".*$/\1/' <<< ${testoutput[$((olines-2))]})")
+        }
     done
-
-    # set UPID for gettaskexitstatus
-    local status="${output[$((line))]}"
-    [[ "${status##*: }" == "true" ]] && {
-        UPID="$(sed -r 's/^.*\"(UPID[^"]+)".*$/\1/' <<< ${output[$((line-2))]})"
-    }
+ 
+    return $result
 }
 
 testsetup_vm_getconfig() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local arguments="${vms[$((runcount-1))]}"
-    testsetup_simple $target $arguments
+    testsetup_loop_vm 'Getting status of created VM/CTs'
 }
 
 testsetup_vm_getstatus() {
-    testsetup_loop_all 'Getting status of created VM/CTs'
+    testsetup_loop_vm 'Getting status of created VM/CTs'
 }
 
 testsetup_vm_setstatus() {
     local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local flags="-vmid ${vms[$((runcount-1))]}"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    # omit a second shutdown because it fails anyway and takes ages
+    echo 'Cycling status for all created VMs/CTs'
+    local flags arguments result
+    for status in start reset suspend resume shutdown stop; do
+        for vmid in "${!vms[@]}"; do
+            case $status in
+                @(reset|suspend)) [[ "${vms[$vmid]}" == "ct" ]] && continue ;;
+                        shutdown) [[ "${vms[$vmid]}" == "vm" ]] && continue ;;
+            esac
 
-    local status
-    for status in start reset suspend resume stop; do
-      testsetup_simple $flags $target $status
+            flags="-vmid ${vmid}"
+            arguments="$status"
+            runAction $flags $target $arguments
+            result=$?
+            setActionResult $target $result
+            (( result )) && break 2
+        done
     done
+ 
+    return $result
 }
 
 testsetup_vm_start() {
-    testsetup_loop_all 'Starting all created VM/CTs'
+    testsetup_loop_vm 'Starting all created VM/CTs'
 }
 
 testsetup_vm_suspend() {
-    testsetup_loop_all 'Suspending all created VM/CTs'
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    echo 'Suspending all created VMs'
+
+    local flags
+    for vmid in "${!vms[@]}"; do
+        [[ "${vms[vmid]}" == "ct" ]] && continue
+
+        flags="-vmid ${vmid}"
+        runAction $flags $target
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
 }
 
 testsetup_vm_resume() {
-    testsetup_loop_all 'Resuming all created VM/CTs'
+    testsetup_loop_vm 'Resuming all created VMs'
 }
 
 testsetup_vm_reset() {
-    testsetup_loop_all 'Resetting all created VM/CTs'
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    echo 'Resetting all created VMs'
+
+    local flags
+    for vmid in "${!vms[@]}"; do
+        [[ "${vms[vmid]}" == "ct" ]] && continue
+
+        flags="-vmid ${vmid}"
+        runAction $flags $target
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
 }
 
 testsetup_vm_stop() {
-    testsetup_loop_all 'Stopping all created VM/CTs'
+    testsetup_loop_vm 'Stopping all created VM/CTs'
 }
 
 testsetup_vm_shutdown() {
-    testsetup_loop_all 'Shutting down all created VM/CTs'
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    echo 'Shutting down all created CTs'
+
+    local flags
+    for vmid in "${!vms[@]}"; do
+        [[ "${vms[vmid]}" == "vm" ]] && continue
+
+        flags="-vmid ${vmid}"
+        runAction $flags $target
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
 }
 
 testsetup_vm_waitforshutdown() {
@@ -140,38 +222,131 @@ testsetup_vm_waitforshutdown() {
 }
 
 testsetup_vm_migrate() {
-    testsetup_stub
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+
+    nodes_bkp=("${nodes[@]}")
+    selectednode_bkp=$selectednode
+
+    for node in "${!nodes[@]}"; do
+        [[ "${nodes[$node]}" == "$selectednode" ]] && unset -v 'nodes[$node]'
+    done
+    nodes=( "${nodes[@]}" )
+
+    debugMessage 'Manual intervention needed'
+    cat<<EOF
+These nodes are available to test migration: ${nodes[@]}
+To which node should I attempt to migrate VMs and CTs?
+EOF
+    promptNode "Enter node name (${nodes[0]}) " "${nodes[0]}" 1
+
+    local flags arguments
+    for vmid in "${!vms[@]}"; do
+        flags="-vmid ${vmid}"
+        arguments="$selectednode"
+        runAction $flags $target $arguments<<EOF
+{
+    "bwlimit": 0,
+    "online": true
+}
+EOF
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+
+    nodes=("${nodes_bkp[@]}")
+    selectednode=$selectednode_bkp
+    return $result
 }
 
 testsetup_vm_getsnapshotlist() {
-    testsetup_stub
+    testsetup_loop_vm 'Getting the list of snapshots for all created VM/CTs'
 }
 
 testsetup_vm_createsnapshot() {
-    testsetup_stub
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags arguments result
+
+    echo 'Taking a snapshot of all created VMs/CTs'
+    for vmid in "${!vms[@]}"; do
+        flags="-vmid ${vmid}"
+        arguments="testsnapshot"
+        runAction $flags $target $arguments<<EOF
+{
+    $([[ "${vms[$vmid]}" == "vm" ]] && echo '"vmstate": true,')
+    "description": "test snapshot"
+}
+EOF
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
 }
 
 testsetup_vm_deletesnapshot() {
-    testsetup_stub
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags arguments result
+
+    echo 'Deleting snapshots of all created VMs/CTs'
+    for vmid in "${!vms[@]}"; do
+        flags="-vmid ${vmid}"
+        arguments="testsnapshot"
+        runAction $flags $target $arguments
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
 }
 
 testsetup_vm_rollback() {
     local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local flags="-vmid ${vms[$((runcount-1))]}"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags arguments result
 
-    cat<<EOF
-For this test please take a snapshot of the VM ${vms[$((runcount-1))]} (${vmnames[$((runcount-1))]})
-Once the snapshot is made, enter its name to attempt to rollback the VM
-EOF
+    echo 'Rolling back all created VMs/CTs to "testsnapshot"'
+    for vmid in "${!vms[@]}"; do
+        flags="-vmid ${vmid}"
+        arguments="testsnapshot"
+        runAction $flags $target $arguments
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
+}
 
-    local snapshot
-    read -p 'Enter the name of the snapshot: ' snapshot
-    testsetup_simple $flags $target "$snapshot"
+testsetup_vm_createtemplate() {
+    testsetup_loop_vm 'Creating a template of all created VMs and CTs'
 }
 
 testsetup_vm_createbackup() {
-    testsetup_stub
+    local runcount=$1 ; shift
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
+    local flags result
+
+    echo 'Backing up all created VMs/CTs'
+    for vmid in "${!vms[@]}"; do
+        flags="-vmid ${vmid}"
+        runAction $flags $target<<EOF
+{
+    "compress": "gzip",
+    "mode": "snapshot"
+}
+EOF
+        result=$?
+        setActionResult $target $result
+        (( result )) && break
+    done
+ 
+    return $result
 }
 
 testsetup_vm_movedisk() {
@@ -187,13 +362,12 @@ EOF
     selectedstorage_ct=$selectedstorage
     selectedstorage_vm=$selectedstorage
 
-    local result flags disk storage vmtype
+    local result flags storage disk
     for vmid in "${!vms[@]}"; do
-        vmtype="${vms[$vmid]}"
-        storage="selectedstorage_${vmtype}"
-        disk='"disk": "virtio0"'; [[ "$vmtype" == "ct" ]] && disk='"volume": "rootfs"'
+        storage="selectedstorage_${vms[$vmid]}"
+        disk='"disk": "virtio0"'; [[ "${vms[$vmid]}" == "ct" ]] && disk='"volume": "rootfs"'
 
-        local flags="-vmid ${vmid}"
+        flags="-vmid ${vmid}"
         runAction $flags $target<<EOF
 {
     ${disk},
@@ -212,16 +386,14 @@ EOF
 testsetup_vm_resizedisk() {
     local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
-    local arguments flags result disk vmtype size
+    local arguments flags result disk size
     for vmid in "${!vms[@]}"; do
-        vmtype="${vms[$vmid]}"
-        disk='virtio0'; [[ "$vmtype" == "ct" ]] && disk='rootfs'
-
-        size="$(( RANDOM % 5 + 1))G"
+        disk='virtio0'; [[ "${vms[$vmid]}" == "ct" ]] && disk='rootfs'
+        size="$(( RANDOM % 4 + 1))G"
+        
+        echo "Attempting to resize disk '$disk' by $size"
         flags="-vmid ${vmid}"
         arguments="$disk +$size"
-
-        echo "Attempting to resize disk '$disk' by $size"
         runAction $flags $target $arguments
         result=$?
         setActionResult $target $result
@@ -232,61 +404,76 @@ testsetup_vm_resizedisk() {
 
 
 testsetup_vm_getspiceproxy() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local arguments="${vms[$((runcount-1))]}"
-    testsetup_simple $target $arguments
+    testsetup_loop_vm
 }
 
 testsetup_vm_monitorcmd() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local flags="-vmid ${vms[$((runcount-1))]}"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
     cat<<EOF
-For this test please enter lines with Qemu monitor commands to send to a VM
-Watch the VM ${vms[$((runcount-1))]} (${vmnames[$((runcount-1))]}) and verify that the commands are affecting it
+For this test please enter lines with Qemu monitor commands to send to all created VMs
 An empty line ends the test
 EOF
 
     local command
     while read -p 'Enter monitor command (empty line to end the test): ' command; do
-      [[ -z "$command" ]] && break
-      testsetup_simple $flags $target "$command"
-    done
+        [[ -z "$command" ]] && break
+        echo "Sending the command '$command' to all created VMs"
 
+        local arguments flags result
+        for vmid in "${!vms[@]}"; do
+            [[ "${vms[$vmid]}" == "ct" ]] && continue
+            echo "Watch the VM $vmid (${vmnames[$vmid]}) and verify that the commands are affecting it"
+
+            flags="-vmid ${vmid}"
+            arguments="$command"
+
+            runAction $flags $target $arguments
+            result=$?
+            setActionResult $target $result
+            (( result )) && break 2
+        done
+    done
+    return $result
 }
 
 testsetup_vm_sendkeysstring() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local flags="-vmid ${vms[$((runcount-1))]}"
+    local target=${FUNCNAME##*${setup_prefix}} ; debugMessage "SETUP TARGET: $target"
 
     cat<<EOF
-For this test please enter lines with strings to be sent to a Qemu VM
-Open the console for the VM ${vms[$((runcount-1))]} (${vmnames[$((runcount-1))]}) and verify that the strings are appearing on the console
+For this test please enter lines with strings to be sent to all created VMs
 An empty line ends the test
 EOF
 
+
     local line
     while read -p 'Enter string (empty line to end the test): ' line; do
-      [[ -z "$line" ]] && break
-      testsetup_simple $flags $target "$line"
+        [[ -z "$line" ]] && break
+        echo "Sending the line '$line' to all created VMs"
+
+        local arguments flags result
+        for vmid in "${!vms[@]}"; do
+            [[ "${vms[$vmid]}" == "ct" ]] && continue
+            echo "Open the console for the VM $vmid (${vmnames[$vmid]}) and verify that the strings are appearing on the console"
+
+            flags="-vmid ${vmid}"
+            arguments="\"$line\""
+
+            runAction $flags $target $arguments
+            result=$?
+            setActionResult $target $result
+            (( result )) && break 2
+        done
     done
+    return $result
 }
 
 testsetup_vm_sshforwardusernet() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local arguments="${vms[$((runcount-1))]}"
-    testsetup_simple $target $arguments
+    testsetup_loop_vm 'Setting SSH forward for all created VM/CTs'
 }
 
 testsetup_vm_removesshforwardusernet() {
-    local runcount=$1 ; shift
-    local target=${FUNCNAME##*${setup_prefix}}
-    local arguments="${vms[$((runcount-1))]}"
-    testsetup_simple $target $arguments
+    testsetup_loop_vm 'Removing SSH forward for all created VM/CTs'
 }
 
 testsetup_vm_getagentnetworkinterfaces() {
