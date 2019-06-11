@@ -533,16 +533,6 @@ main() {
         shift
     }
 
-PM_API_URL | $PM_API_URL
-PM_USER    | $PM_USER
-PM_PASS    | $PM_PASS
-
-EOF
-}
-
-
-# Entry code
-
 main() {
     if (( ! $# )); then
         startHeader "Suite mode"
