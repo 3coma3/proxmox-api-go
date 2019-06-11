@@ -4,7 +4,7 @@ import (
 	"github.com/3coma3/proxmox-api-go/proxmox"
 	"bufio"
 	"crypto/tls"
-	// "encoding/json"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
