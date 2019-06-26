@@ -52,48 +52,54 @@ func (vm *Vm) Check() (err error) {
 
 	if vm.node == nil || vm.vmtype == "" {
 		if vmInfo, err = vm.GetInfo(); err == nil {
-			vm.vmtype = vmInfo["type"].(string)
 			vm.node = NewNode(vmInfo["node"].(string))
+			vm.vmtype = vmInfo["type"].(string)
 		}
 	}
+
 	return
 }
 
-func GetVmList() (list map[string]interface{}, err error) {
-	err = GetClient().GetJsonRetryable("/cluster/resources?type=vm", &list, 3)
+func GetVmList() (vmlist []interface{}, err error) {
+	var list map[string]interface{}
+
+	if err = GetClient().GetJsonRetryable("/cluster/resources?type=vm", &list, 3); err == nil {
+		vmlist = list["data"].([]interface{})
+	}
+
 	return
 }
 
 func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
-	var resp map[string]interface{}
-
-	if resp, err = GetVmList(); err != nil {
+	vms, err := GetVmList()
+	if err == nil {
 		return
 	}
 
-	vms := resp["data"].([]interface{})
 	for i := range vms {
 		vmInfo = vms[i].(map[string]interface{})
 		if int(vmInfo["vmid"].(float64)) == vm.id {
 			return
 		}
 	}
+
 	return nil, errors.New(fmt.Sprintf("Vm '%d' not found", vm.id))
 }
 
 // factory by name
 func FindVm(name string) (vm *Vm, err error) {
-	var resp map[string]interface{}
-	if resp, err = GetVmList(); err == nil {
-		vms := resp["data"].([]interface{})
-		for i := range vms {
-			vmInfo := vms[i].(map[string]interface{})
-			if vmInfo["name"] != nil && vmInfo["name"].(string) == name {
-				vm = NewVm(int(vmInfo["vmid"].(float64)))
-				vm.node = NewNode(vmInfo["node"].(string))
-				vm.vmtype = vmInfo["type"].(string)
-				return
-			}
+	vms, err := GetVmList()
+	if err == nil {
+		return
+	}
+
+	for i := range vms {
+		vmInfo := vms[i].(map[string]interface{})
+		if vmInfo["name"] != nil && vmInfo["name"].(string) == name {
+			vm = NewVm(int(vmInfo["vmid"].(float64)))
+			vm.node = NewNode(vmInfo["node"].(string))
+			vm.vmtype = vmInfo["type"].(string)
+			return
 		}
 	}
 
@@ -101,14 +107,16 @@ func FindVm(name string) (vm *Vm, err error) {
 }
 
 func GetMaxVmId() (max int, err error) {
-	if resp, err := GetVmList(); err == nil {
-		vms := resp["data"].([]interface{})
-		max = 0
-		for vmii := range vms {
-			vm := vms[vmii].(map[string]interface{})
-			if vmid := int(vm["vmid"].(float64)); vmid > max {
-				max = vmid
-			}
+	vms, err := GetVmList()
+	if err == nil {
+		return
+	}
+
+	max = 0
+	for i := range vms {
+		vm := vms[i].(map[string]interface{})
+		if vmid := int(vm["vmid"].(float64)); vmid > max {
+			max = vmid
 		}
 	}
 

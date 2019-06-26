@@ -533,7 +533,6 @@ main() {
         shift
     }
 
-main() {
     if (( ! $# )); then
         startHeader "Suite mode"
 
