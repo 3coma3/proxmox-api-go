@@ -72,7 +72,7 @@ func GetVmList() (vmlist []interface{}, err error) {
 
 func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
 	vms, err := GetVmList()
-	if err == nil {
+	if err != nil {
 		return
 	}
 
@@ -89,7 +89,7 @@ func (vm *Vm) GetInfo() (vmInfo map[string]interface{}, err error) {
 // factory by name
 func FindVm(name string) (vm *Vm, err error) {
 	vms, err := GetVmList()
-	if err == nil {
+	if err != nil {
 		return
 	}
 
@@ -108,7 +108,7 @@ func FindVm(name string) (vm *Vm, err error) {
 
 func GetMaxVmId() (max int, err error) {
 	vms, err := GetVmList()
-	if err == nil {
+	if err != nil {
 		return
 	}
 
