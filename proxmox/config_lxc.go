@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,6 +34,7 @@ type ConfigLxc struct {
 	Protection   bool      `json:"protection"`
 	Rootfs       VmDevice  `json:"rootfs"`
 	Searchdomain string    `json:"searchdomain"`
+	Start        bool      `json:"start"`
 	Startup      string    `json:"startup"`
 	Sshkeys      string    `json:"ssh-public-keys"`
 	Swap         int       `json:"swap"`
@@ -59,13 +59,16 @@ func (config ConfigLxc) CreateVm(vm *Vm) (err error) {
 		"nameserver":      config.Nameserver,
 		"onboot":          config.Onboot,
 		"ostype":          config.Ostype,
-		"protection":      config.Protection,
-		"swap":            config.Swap,
-		"searchdomain":    config.Searchdomain,
 		"ostemplate":      config.Ostemplate,
+		"password":        config.Password,
+		"protection":      config.Protection,
+		"searchdomain":    config.Searchdomain,
+		"start":           config.Start,
+		"startup":         config.Startup,
+		"ssh-public-keys": config.Sshkeys,
+		"swap":            config.Swap,
 		"tty":             config.Tty,
 		"unprivileged":    config.Unprivileged,
-		"ssh-public-keys": config.Sshkeys,
 	}
 
 	// Create mountpoints config.
@@ -99,6 +102,9 @@ func (config ConfigLxc) UpdateConfig(vm *Vm) (err error) {
 	if config.Ostype != "" {
 		params["ostype"] = config.Ostype
 	}
+	if config.Ostemplate != "" {
+		params["ostemplate"] = config.Ostemplate
+	}
 	if config.Searchdomain != "" {
 		params["searchdomain"] = config.Searchdomain
 	}
@@ -118,10 +124,11 @@ func (config ConfigLxc) UpdateConfig(vm *Vm) (err error) {
 	params["cores"] = config.Cores
 	params["cpuunits"] = config.Cpuunits
 	params["memory"] = config.Memory
-	params["ostype"] = config.Ostype
+	params["onboot"] = config.Onboot
 	params["protection"] = config.Protection
 	params["swap"] = config.Swap
 	params["tty"] = config.Tty
+	params["unprivileged"] = config.Tty
 
 	// Create mountpoints config.
 	config.CreateDisksParams(vm.id, params, true)
@@ -150,13 +157,15 @@ func NewConfigLxc() *ConfigLxc {
 		Nameserver:   "",
 		Net:          VmDevices{},
 		Onboot:       false,
+		Ostemplate:   "",
 		Ostype:       "unmanaged",
 		Protection:   false,
 		Rootfs:       VmDevice{},
 		Searchdomain: "",
 		Sshkeys:      "",
+		Start:        false,
+		Startup:      "",
 		Swap:         512,
-		Ostemplate:   "",
 		Tty:          2,
 		Unprivileged: false,
 	}
@@ -242,21 +251,17 @@ func NewConfigLxcFromApi(vm *Vm) (config *ConfigLxc, err error) {
 	if _, isSet := vmConfig["searchdomain"]; isSet {
 		config.Searchdomain = vmConfig["searchdomain"].(string)
 	}
+	if _, isSet := vmConfig["startup"]; isSet {
+		config.Startup = vmConfig["startup"].(string)
+	}
 	if _, isSet := vmConfig["swap"]; isSet {
 		config.Swap = int(vmConfig["swap"].(float64))
-	}
-	if _, isSet := vmConfig["ostemplate"]; isSet {
-		config.Ostemplate = vmConfig["ostemplate"].(string)
 	}
 	if _, isSet := vmConfig["tty"]; isSet {
 		config.Tty = int(vmConfig["tty"].(float64))
 	}
 	if _, isSet := vmConfig["unprivileged"]; isSet {
 		config.Unprivileged = Itob(int(vmConfig["unprivileged"].(float64)))
-	}
-
-	if _, isSet := vmConfig["ssh-public-keys"]; isSet {
-		config.Sshkeys, _ = url.PathUnescape(vmConfig["ssh-public-keys"].(string))
 	}
 
 	// Add mountpoints
