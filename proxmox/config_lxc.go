@@ -64,11 +64,14 @@ func (config ConfigLxc) CreateVm(vm *Vm) (err error) {
 		"protection":      config.Protection,
 		"searchdomain":    config.Searchdomain,
 		"start":           config.Start,
-		"startup":         config.Startup,
 		"ssh-public-keys": config.Sshkeys,
 		"swap":            config.Swap,
 		"tty":             config.Tty,
 		"unprivileged":    config.Unprivileged,
+	}
+
+	if config.Startup != "" {
+		params["startup"] = config.Startup
 	}
 
 	// Create mountpoints config.
