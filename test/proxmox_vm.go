@@ -4,6 +4,7 @@ import (
 	"github.com/3coma3/proxmox-api-go/proxmox"
 	"encoding/json"
 	"os"
+	"strings"
 )
 
 func init() {

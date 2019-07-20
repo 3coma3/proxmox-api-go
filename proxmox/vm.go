@@ -144,6 +144,8 @@ func GetNextVmId(currentId int) (nextId int, err error) {
 			}
 		}
 		nextId, err = strconv.Atoi(data["data"].(string))
+	} else if strings.HasPrefix(err.Error(), "400 ") {
+		return GetNextVmId(currentId + 1)
 	}
 
 	return
