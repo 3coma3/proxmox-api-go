@@ -204,7 +204,7 @@ func init() {
 
 	testActions["vm_monitorcmd"] = func(options *TOptions) (response interface{}, err error) {
 		_, vm := newClientAndVmr(options)
-		return vm.MonitorCmd(options.Args[1])
+		return vm.MonitorCmd(strings.Join(append(options.Args[:0], options.Args[+1:]...), " "))
 	}
 
 	testActions["vm_sendkeysstring"] = func(options *TOptions) (response interface{}, err error) {
