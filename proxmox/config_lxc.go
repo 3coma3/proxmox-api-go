@@ -34,7 +34,6 @@ type ConfigLxc struct {
 	Protection   bool      `json:"protection"`
 	Rootfs       VmDevice  `json:"rootfs"`
 	Searchdomain string    `json:"searchdomain"`
-	Start        bool      `json:"start"`
 	Startup      string    `json:"startup"`
 	Sshkeys      string    `json:"ssh-public-keys"`
 	Swap         int       `json:"swap"`
@@ -63,7 +62,6 @@ func (config ConfigLxc) CreateVm(vm *Vm) (err error) {
 		"password":        config.Password,
 		"protection":      config.Protection,
 		"searchdomain":    config.Searchdomain,
-		"start":           config.Start,
 		"ssh-public-keys": config.Sshkeys,
 		"swap":            config.Swap,
 		"tty":             config.Tty,
@@ -166,7 +164,6 @@ func NewConfigLxc() *ConfigLxc {
 		Rootfs:       VmDevice{},
 		Searchdomain: "",
 		Sshkeys:      "",
-		Start:        false,
 		Startup:      "",
 		Swap:         512,
 		Tty:          2,
