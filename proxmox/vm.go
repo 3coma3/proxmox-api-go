@@ -292,12 +292,12 @@ func (vm *Vm) GetStatus() (vmState map[string]interface{}, err error) {
 	return
 }
 
-func (vm *Vm) SetStatus(setStatus string) (exitStatus string, err error) {
+func (vm *Vm) SetStatus(status string) (exitStatus string, err error) {
 	if err = vm.Check(); err != nil {
 		return
 	}
 
-	url := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", vm.node.name, vm.vmtype, vm.id, setStatus)
+	url := fmt.Sprintf("/nodes/%s/%s/%d/status/%s", vm.node.name, vm.vmtype, vm.id, status)
 	var taskResponse map[string]interface{}
 	for i := 0; i < 3; i++ {
 		_, err = GetClient().session.PostJSON(url, nil, nil, nil, &taskResponse)
