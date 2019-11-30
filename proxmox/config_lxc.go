@@ -129,7 +129,6 @@ func (config ConfigLxc) UpdateConfig(vm *Vm) (err error) {
 	params["protection"] = config.Protection
 	params["swap"] = config.Swap
 	params["tty"] = config.Tty
-	params["unprivileged"] = config.Tty
 
 	// Create mountpoints config.
 	config.CreateDisksParams(vm.id, params, true)
