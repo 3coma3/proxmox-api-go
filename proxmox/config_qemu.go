@@ -202,8 +202,14 @@ func NewConfigQemuFromApi(vm *Vm) (config *ConfigQemu, err error) {
 		onboot = Itob(int(vmConfig["onboot"].(float64)))
 	}
 	agent := "1"
-	if _, isSet := vmConfig["agent"]; isSet {
-		agent = vmConfig["agent"].(string)
+	if a, isSet := vmConfig["agent"]; isSet {
+		// this is needed to handle 5.x PVE where the parameter is only 1 or 0
+		switch a.(type) {
+		case float64:
+			agent = fmt.Sprintf("%.0f", a.(float64))
+		default:
+			agent = a.(string)
+		}
 	}
 	ostype := "other"
 	if _, isSet := vmConfig["ostype"]; isSet {
